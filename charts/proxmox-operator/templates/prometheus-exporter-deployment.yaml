@@ -1,0 +1,134 @@
+{{- if .Values.prometheusExporter.enabled }}
+{{- $firstInstance := index .Values.proxmox.instances 0 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "proxmox-operator.fullname" . }}-exporter
+  labels:
+    {{- include "proxmox-operator.prometheusExporter.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit | default 10 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "proxmox-operator.prometheusExporter.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "proxmox-operator.prometheusExporter.labels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: {{ .Values.prometheusExporter.automountServiceAccountToken }}
+      securityContext:
+        {{- include "proxmox-operator.podSecurityContext" (dict "context" . "overrides" .Values.prometheusExporter.podSecurityContext) | nindent 8 }}
+      containers:
+        - name: prometheus-pve-exporter
+          image: "{{ .Values.prometheusExporter.image.repository }}:{{ .Values.prometheusExporter.image.tag }}"
+          imagePullPolicy: {{ .Values.prometheusExporter.image.pullPolicy }}
+          ports:
+            - name: metrics
+              containerPort: 9221
+              protocol: TCP
+          securityContext:
+            {{- include "proxmox-operator.containerSecurityContext" (dict "context" . "overrides" .Values.prometheusExporter.containerSecurityContext) | nindent 12 }}
+          env:
+            {{- $credSecret := include "proxmox-operator.credentialsSecretName" (dict "root" . "instance" $firstInstance) }}
+            - name: PVE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $credSecret }}
+                  key: PROXMOX_USERNAME
+            - name: PVE_TOKEN_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $credSecret }}
+                  key: PROXMOX_TOKEN_ID
+            - name: PVE_TOKEN_VALUE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $credSecret }}
+                  key: PROXMOX_TOKEN_SECRET
+            - name: PVE_VERIFY_SSL
+              value: {{ .Values.proxmox.verifySSL | quote }}
+            - name: PVE_MODULE
+              value: "default"
+          args:
+            - --web.listen-address=:9221
+            {{- if .Values.prometheusExporter.collectors.status }}
+            - --collector.status
+            {{- else }}
+            - --no-collector.status
+            {{- end }}
+            {{- if .Values.prometheusExporter.collectors.version }}
+            - --collector.version
+            {{- else }}
+            - --no-collector.version
+            {{- end }}
+            {{- if .Values.prometheusExporter.collectors.node }}
+            - --collector.node
+            {{- else }}
+            - --no-collector.node
+            {{- end }}
+            {{- if .Values.prometheusExporter.collectors.cluster }}
+            - --collector.cluster
+            {{- else }}
+            - --no-collector.cluster
+            {{- end }}
+            {{- if .Values.prometheusExporter.collectors.resources }}
+            - --collector.resources
+            {{- else }}
+            - --no-collector.resources
+            {{- end }}
+            {{- if .Values.prometheusExporter.collectors.config }}
+            - --collector.config
+            {{- else }}
+            - --no-collector.config
+            {{- end }}
+            {{- if .Values.prometheusExporter.collectors.replication }}
+            - --collector.replication
+            {{- else }}
+            - --no-collector.replication
+            {{- end }}
+            {{- if .Values.prometheusExporter.collectors.subscription }}
+            - --collector.subscription
+            {{- else }}
+            - --no-collector.subscription
+            {{- end }}
+          resources:
+{{ toYaml .Values.prometheusExporter.resources | indent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          livenessProbe:
+            tcpSocket:
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- if .Values.prometheusExporter.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.prometheusExporter.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.prometheusExporter.affinity }}
+      affinity:
+{{ toYaml .Values.prometheusExporter.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.prometheusExporter.tolerations }}
+      tolerations:
+{{ toYaml .Values.prometheusExporter.tolerations | indent 8 }}
+      {{- end }}
+{{- end }}

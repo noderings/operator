@@ -1,0 +1,247 @@
+{{- if .Values.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: proxmoxvms.vm.proxmox.com
+spec:
+  group: vm.proxmox.com
+  scope: Namespaced
+  names:
+    plural: proxmoxvms
+    singular: proxmoxvm
+    kind: ProxmoxVM
+    shortNames:
+      - pvm
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - proxmoxNodeRef
+                - vmConfig
+              properties:
+                proxmoxNodeRef:
+                  type: object
+                  description: "Reference to the owning ProxmoxNode CR (same namespace). The operator resolves the Proxmox API endpoint from ProxmoxNode.spec.proxmoxUrl. The VM CR itself never carries a proxmoxUrl field."
+                  required:
+                    - name
+                  properties:
+                    name:
+                      type: string
+                      minLength: 1
+                      description: "Name of the ProxmoxNode CR in the same namespace."
+                vmidSeed:
+                  type: integer
+                  description: "Starting VMID seed number for VM allocation (e.g., 9000). All VMs will increment from this seed."
+                  minimum: 100
+                  maximum: 999999999
+                vmConfig:
+                  type: object
+                  properties:
+                    templateId:
+                      type: string
+                    name:
+                      type: string
+                    nodeName:
+                      type: string
+                    description:
+                      type: string
+                    vmId:
+                      type: string
+                      description: "Optional desired Proxmox VMID for non-create operations (start/stop/etc). Allocated VMID after create is written to status.vmId."
+                    cpu:
+                      type: object
+                      properties:
+                        cores:
+                          type: integer
+                        sockets:
+                          type: integer
+                        type:
+                          type: string
+                          description: "Proxmox guest CPU model (cpu= parameter), e.g. host, x86-64-v2-AES. From node settings."
+                        limit:
+                          type: integer
+                          minimum: 0
+                          maximum: 128
+                          description: "Proxmox cpulimit= (max CPU time across all cores); 0 = unlimited. From plan."
+                        units:
+                          type: integer
+                          minimum: 1
+                          maximum: 500000
+                          description: "Proxmox cpuunits= fair-share scheduling weight. From plan."
+                        affinity:
+                          type: string
+                          pattern: '^\d+(-\d+)?(,\d+(-\d+)?)*$'
+                          description: "Proxmox affinity= cpuset of host logical CPU ids, e.g. 0-3,64-67. Set by backend for dedicated-core VMs."
+                        numa:
+                          type: boolean
+                          default: true
+                          description: "Proxmox numa= flag; always true (enabled for shared and dedicated VMs)."
+                    memory:
+                      type: string
+                    disks:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          storage:
+                            type: string
+                          size:
+                            type: string
+                    networks:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          bridge:
+                            type: string
+                          model:
+                            type: string
+                          macAddress:
+                            type: string
+                            pattern: "^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$"
+                            description: "Allocated MAC address for this NIC (from backend mac_allocations). Empty = Proxmox auto-assigns."
+                          vlanId:
+                            type: integer
+                            minimum: 0
+                            maximum: 4094
+                            description: "802.1Q VLAN tag (Proxmox tag=); omit or 0 = untagged."
+                          rateLimitMBps:
+                            type: number
+                            minimum: 0
+                            description: "Bandwidth cap in MB/s (Proxmox rate=); omit or 0 = unlimited. From plan."
+                    cloudInit:
+                      type: object
+                      properties:
+                        hostname:
+                          type: string
+                          description: "Hostname for the virtual machine"
+                        userDataSecretRef:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                        vendorDataConfigMapRef:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                        networkDataConfigMapRef:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                        authSecretRef:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                          description: "Reference to Kubernetes Secret containing auth data. Secret should contain exactly one of: 'userdata' (string), 'sshkeys' (newline-separated string), or 'hashed_passwd' (SHA-512 crypt $6$... string for cloud-init / vm.hashed_passwd). Legacy key 'password' is accepted as an alias for hashed_passwd."
+                        storage:
+                          type: string
+                          description: "Storage name for ISO file. Defaults to 'local' if not specified."
+                        staticIpConfig:
+                          type: object
+                          description: "Static IP network configuration (used when platform.self_managed_dhcp is false)"
+                          properties:
+                            ipv4Address:
+                              type: string
+                              description: "IPv4 address (e.g., 10.0.0.5)"
+                            ipv4Prefix:
+                              type: string
+                              description: "IPv4 prefix length (e.g., 24)"
+                            ipv6Address:
+                              type: string
+                              description: "IPv6 address (e.g., 2001:db8::1)"
+                            ipv6Prefix:
+                              type: string
+                              description: "IPv6 prefix length (e.g., 64)"
+                            ipv4Gateway:
+                              type: string
+                              description: "Default IPv4 gateway IP address"
+                            ipv6Gateway:
+                              type: string
+                              description: "Default IPv6 gateway IP address"
+                            dnsServers:
+                              type: array
+                              items:
+                                type: string
+                              description: "DNS server IP addresses"
+                            additionalIpv4Addresses:
+                              type: array
+                              description: "Extra IPv4 addresses (ADDITIONAL-IP addon), same prefix as primary"
+                              items:
+                                type: object
+                                properties:
+                                  address:
+                                    type: string
+                                    description: "IPv4 address (e.g., 10.0.0.6)"
+                                  prefix:
+                                    type: string
+                                    description: "IPv4 prefix length (e.g., 24)"
+                                  gateway:
+                                    type: string
+                                    description: "Default IPv4 gateway (usually same as primary)"
+                firewallRuleSet:
+                  type: object
+                  description: "Optional reference to a FirewallRuleSet applied to this VM (rules contain their own direction). FirewallRuleSet must be in the same namespace as the ProxmoxVM."
+                  properties:
+                    name:
+                      type: string
+                      description: "Name of the FirewallRuleSet CR (must be in the same namespace)"
+                blockOutboundSmtp:
+                  type: boolean
+                  default: false
+                  description: "When true, operator ensures guest firewall DROP rules for outbound TCP ports 25, 465, 587 at highest priority. Independent of firewallRuleSet."
+                operation:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                hooks:
+                  type: object
+                  additionalProperties:
+                    type: string
+                    maxLength: 65536
+                  description: "Provider lifecycle hook scripts keyed by operation (created, started, stopped, deleted, restarted, reinstalled)."
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    ["Pending", "Provisioning", "Ready", "Error", "Deleting"]
+                message:
+                  type: string
+                observedGeneration:
+                  type: integer
+                vmId:
+                  type: string
+                  description: "Allocated Proxmox VMID written by the operator after create/reinstall (mirrored remote→local under Liqo status replication)."
+                lastHook:
+                  type: object
+                  description: "Result of the most recent lifecycle hook Job."
+                  properties:
+                    operation:
+                      type: string
+                    state:
+                      type: string
+                    ranAt:
+                      type: string
+                    message:
+                      type: string
+                    jobName:
+                      type: string
+      subresources:
+        status: {}
+{{- end }}

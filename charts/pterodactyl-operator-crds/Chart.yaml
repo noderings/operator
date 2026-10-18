@@ -1,0 +1,16 @@
+apiVersion: v2
+name: pterodactyl-operator-crds
+description: CustomResourceDefinitions for the Pterodactyl game server operator (gs.pterodactyl.com)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/noderings/operator
+sources:
+  - https://github.com/noderings/operator
+keywords:
+  - pterodactyl
+  - kubernetes
+  - crd
+maintainers:
+  - name: Node Rings
+    url: https://github.com/noderings

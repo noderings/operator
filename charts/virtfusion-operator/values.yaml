@@ -1,0 +1,371 @@
+crds:
+  enabled: true
+
+virtfusion-operator-crds:
+  enabled: true
+
+image:
+  registry: harbor.noderings.com
+  repository: nrings/virtfusion-operator
+  # Harbor stores this OCI Helm chart and the container image in the same repo.
+  # Helm OCI tag is Chart.yaml version (0.1.9). Image tag keeps the v prefix so it
+  # does not overwrite the chart.
+  tag: v0.1.10
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+revisionHistoryLimit: 10
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+serviceAccount:
+  create: true
+  name: ""
+  automountServiceAccountToken: false
+
+rbac:
+  create: true
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+networkPolicy:
+  enabled: true
+
+# Lifecycle hook Jobs for provider Python scripts (spec.hooks).
+# Requires a CNI that enforces NetworkPolicy. Do not enable on clusters that ignore NP.
+hooks:
+  enabled: true
+  # Empty → {Release.Namespace}-hooks. Jobs and script Secrets land there, not
+  # beside VM CRs / hypervisor credential Secrets.
+  jobNamespace: ""
+  # Provider-owned Secret in the hooks namespace. Keys become env vars and files
+  # under /var/run/secrets/noderings-hooks. Missing Secret does not fail Jobs
+  # (optional: true). Set to "" to disable injection.
+  providerSecretName: "noderings-hook-secrets"
+  # Empty uses the operator image (stdlib Python). Override to pin a slimmer image.
+  image: ""
+  timeoutSeconds: 300
+  maxConcurrent: 5
+  ttlSecondsAfterFinished: 86400
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  extraEgress: []
+  # - cidr: 203.0.113.10/32
+  #   port: 8443
+  # Provider LAN / Tailscale. except CIDRs must be subsets of cidr (NetworkPolicy).
+  # Cluster, docker/kind, metadata, and loopback stay blocked via except + public deny-list.
+  privateEgress:
+    - cidr: 10.0.0.0/8
+      except:
+        - 10.42.0.0/16   # k3s pods
+        - 10.43.0.0/16   # k3s services
+        - 10.96.0.0/12   # kubeadm services
+        - 10.100.0.0/16  # platform control-plane pods
+        - 10.101.0.0/16  # platform control-plane services
+        - 10.200.0.0/16  # NodeRings provider pods
+        - 10.201.0.0/16  # NodeRings provider services
+        - 10.244.0.0/16  # flannel pods
+    - cidr: 172.16.0.0/12
+      except:
+        - 172.17.0.0/16  # docker0
+        - 172.18.0.0/16  # docker/kind
+    - cidr: 192.168.0.0/16
+    - cidr: 100.64.0.0/10  # CGNAT / Tailscale
+    - cidr: fc00::/7       # IPv6 ULA
+
+virtfusion:
+  # Agent installs never verify the control-plane TLS certificate.
+  verifySSL: false
+  instances:
+    - id: "vf-1"
+      url: "https://cp.example.com"
+      existingSecret: ""
+      # Tokens stay in the Secret (CLI kubectl apply), not Helm --set.
+      # userApiToken / userId / userName are written by nr cluster register.
+
+env: []
+
+securityContext:
+  nofile: 65536
+
+operator:
+  enabled: true
+  automountServiceAccountToken: false
+  mountServiceAccountToken: true
+  podSecurityContext: {}
+  containerSecurityContext: {}
+
+nodeSelector: {}
+affinity: {}
+tolerations: []
+
+prometheusExporter:
+  enabled: true
+  automountServiceAccountToken: false
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    capabilities:
+      drop:
+        - ALL
+  image:
+    repository: harbor.noderings.com/nrings/prometheus-virtfusion-exporter
+    tag: dev
+    pullPolicy: IfNotPresent
+
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  service:
+    type: ClusterIP
+    port: 9178
+    annotations: {}
+
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+vncGateway:
+  enabled: true
+  namespace: "vnc-gateway"
+  replicas: 1
+  automountServiceAccountToken: false
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    capabilities:
+      drop:
+        - ALL
+  image:
+    repository: harbor.noderings.com/nrings/vnc-gateway
+    # RFB/SVM gateway (ready without Proxmox instances). Harbor :main 503s in
+    # this mode. The CLI loads a local-rfb build as :rfb; do not import that
+    # image onto Proxmox agents.
+    tag: rfb
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+  port: 8080
+  logLevel: info
+  readTimeout: 30s
+  writeTimeout: 10s
+
+  networkPolicy:
+    allowRemoteClients: false
+    extraIngress: []
+
+  podAnnotations: {}
+
+  metrics:
+    scrape:
+      enabled: false
+      path: /metrics
+      port: "8080"
+
+  telemetry:
+    tracingEnabled: false
+    otlpEndpoint: ""
+    otlpInsecure: false
+    traceSampleRatio: 1
+    serviceName: ""
+    serviceVersion: ""
+
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  service:
+    type: ClusterIP
+    port: 8080
+    annotations: {}
+
+  serviceMonitor:
+    enabled: false
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+alloy:
+  enabled: true
+
+  global:
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+
+  serviceAccount:
+    automountServiceAccountToken: false
+
+  rbac:
+    create: false
+
+  networkPolicy:
+    enabled: true
+    policyTypes:
+      - Ingress
+      - Egress
+    ingress:
+      - from:
+          - podSelector: {}
+        ports:
+          - port: 12345
+            protocol: TCP
+    egress:
+      - ports:
+          - port: 9178
+            protocol: TCP
+      - ports:
+          - port: 8080
+            protocol: TCP
+          - port: 8082
+            protocol: TCP
+      - ports:
+          - port: 443
+            protocol: TCP
+      - ports:
+          - port: 80
+            protocol: TCP
+      - ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+
+  controller:
+    volumes:
+      extra:
+        - name: tmp
+          emptyDir: {}
+
+  configReloader:
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
+    resources:
+      requests:
+        cpu: 10m
+        memory: 50Mi
+      limits:
+        cpu: 50m
+        memory: 64Mi
+
+  alloy:
+    envFrom: []
+    configMap:
+      create: false
+      name: operator-virtfusion-operator-alloy-config
+
+    image:
+      repository: grafana/alloy
+      tag: v1.12.1
+      pullPolicy: IfNotPresent
+
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
+
+    mounts:
+      extra:
+        - name: tmp
+          mountPath: /tmp
+
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+  agentId: ""
+
+  # Production remote_write host. Point a lab install elsewhere with Helm --set only, e.g.
+  #   --set-string alloy.mimir.serviceEndpoint=$MIMIR_SERVICE_ENDPOINT
+  #   --set alloy.mimir.tls.enabled=$MIMIR_TLS_ENABLED
+  # Do not bake a lab address into the chart, CRD, or image.
+  mimir:
+    serviceEndpoint: "metrics.noderings.com"
+    tls:
+      enabled: true
+    secretName: "mimir-credentials"
+    bearerToken: ""
+
+  scrape:
+    interval: 30s
+    timeout: 10s

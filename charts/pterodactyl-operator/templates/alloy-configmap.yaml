@@ -1,0 +1,57 @@
+{{- if .Values.alloy.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pterodactyl-operator.fullname" . }}-alloy-config
+  labels:
+    {{- include "pterodactyl-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics-forwarder
+  annotations:
+    liqo.io/skip-reflection: "true"
+data:
+  config.alloy: |
+    {{- $target := .Values.panel.url | replace "https://" "" | replace "http://" "" | trimSuffix "/" }}
+    {{- if not $target }}
+    {{- $target = "pterodactyl" }}
+    {{- end }}
+    // Remote write to Mimir via db-auth-gateway (Bearer token; tenant set server-side).
+    prometheus.remote_write "mimir" {
+      {{- if .Values.alloy.agentId }}
+      external_labels = {
+        agent_id = "{{ .Values.alloy.agentId }}",
+      }
+      {{- end }}
+      endpoint {
+        {{- if .Values.alloy.mimir.tls.enabled }}
+        url = "https://{{ .Values.alloy.mimir.serviceEndpoint }}/api/v1/push"
+        {{- else }}
+        url = "http://{{ .Values.alloy.mimir.serviceEndpoint }}/api/v1/push"
+        {{- end }}
+        {{- if or .Values.alloy.mimir.secretName .Values.alloy.mimir.bearerToken }}
+        authorization {
+          type = "Bearer"
+          credentials = sys.env("MIMIR_BEARER_TOKEN")
+        }
+        {{- end }}
+      }
+    }
+
+    prometheus.scrape "pterodactyl" {
+      targets = [{
+        __address__ = "{{ include "pterodactyl-operator.fullname" . }}-exporter:{{ .Values.prometheusExporter.port }}",
+      }]
+      forward_to = [prometheus.relabel.pterodactyl.receiver]
+      scrape_interval = "{{ .Values.alloy.scrape.interval }}"
+      scrape_timeout = "{{ .Values.alloy.scrape.timeout }}"
+      metrics_path = "/metrics"
+    }
+
+    prometheus.relabel "pterodactyl" {
+      forward_to = [prometheus.remote_write.mimir.receiver]
+      rule {
+        action       = "replace"
+        target_label = "instance"
+        replacement  = "{{ $target }}"
+      }
+    }
+{{- end }}

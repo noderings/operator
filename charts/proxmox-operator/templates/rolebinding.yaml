@@ -1,0 +1,16 @@
+{{- if and .Values.operator.enabled .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "proxmox-operator.fullname" . }}-rb
+  labels:
+    {{- include "proxmox-operator.operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "proxmox-operator.fullname" . }}-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ default (include "proxmox-operator.serviceAccountName" .) .Values.serviceAccount.name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

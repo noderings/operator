@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+
+# Poetry exports (generated from pyproject.toml)
+requirements.txt
+
+# Virtualenv
+.venv/
+venv/
+
+# Tools caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.pre-commit-cache/
+
+# OS
+.DS_Store
+
+# Local image tarballs for k3s import (never commit)
+.cache/
+
+
+.env
+
+destroy_vm.py
+
+# Graphify scratch stays local. Share the graph a clone can query.
+graphify-out/*
+!graphify-out/graph.json
+!graphify-out/graph.html
+!graphify-out/GRAPH_REPORT.md
+
+# Editor, CI, and local tool config stay on disk and are not published.
+/.cursor/
+/.cursorrules
+/.github/
+/.dockerignore
+/.mega-linter.yml
+/.pre-commit-config.yaml
+/.kubescape/
+
+# Local lab Helm values and live panel scripts.
+/charts/proxmox-operator/values-local.yaml
+/tests/live_pterodactyl_order.py
+/tests/live_vf_password_userdata.py

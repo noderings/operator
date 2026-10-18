@@ -1,0 +1,153 @@
+{{- if .Values.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: vmbackups.vm.proxmox.com
+spec:
+  group: vm.proxmox.com
+  scope: Namespaced
+  names:
+    plural: vmbackups
+    singular: vmbackup
+    kind: VMBackup
+    shortNames:
+      - vmback
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - vmRef
+                - addonId
+                - backupName
+                - scheduledAt
+                - storage
+              properties:
+                vmRef:
+                  type: object
+                  required:
+                    - name
+                  properties:
+                    name:
+                      type: string
+                      description: "Name of the ProxmoxVM CR (e.g., virtualmachine-{uuid})"
+                    namespace:
+                      type: string
+                      description: "Namespace of the ProxmoxVM CR"
+                addonId:
+                  type: string
+                  description: "Addon UUID"
+                backupName:
+                  type: string
+                  description: "Backend-generated backup name for this run (e.g., {vmid_short}-20260310-0200)"
+                scheduledAt:
+                  type: string
+                  format: date-time
+                  description: "ISO8601 scheduled slot time"
+                storage:
+                  type: object
+                  required:
+                    - storageId
+                    - compression
+                    - mode
+                  properties:
+                    storageId:
+                      type: string
+                      minLength: 1
+                    compression:
+                      type: string
+                      enum: ["none", "lzo", "gzip", "zstd"]
+                    mode:
+                      type: string
+                      enum: ["snapshot", "suspend", "stop"]
+                expiresAt:
+                  type: string
+                  format: date-time
+                  description: "ISO8601 timestamp when this backup should be removed from Proxmox. When now >= expiresAt the operator deletes the backup. Set to past/now for manual delete."
+                restoreRequest:
+                  type: object
+                  nullable: true
+                  properties:
+                    backupName:
+                      type: string
+                    backupVolid:
+                      type: string
+                    stopVm:
+                      type: boolean
+                    startAfterRestore:
+                      type: boolean
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Running", "Succeeded", "Failed", "Deleted"]
+                message:
+                  type: string
+                taskUpid:
+                  type: string
+                  nullable: true
+                volid:
+                  type: string
+                  nullable: true
+                sizeBytes:
+                  type: integer
+                startedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                completedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                error:
+                  type: string
+                  nullable: true
+                restoreStatus:
+                  type: object
+                  properties:
+                    state:
+                      type: string
+                      enum: ["none", "requested", "restoring", "completed", "failed"]
+                    requestedBackupVolid:
+                      type: string
+                      nullable: true
+                    requestedAt:
+                      type: string
+                      format: date-time
+                      nullable: true
+                    startedAt:
+                      type: string
+                      format: date-time
+                      nullable: true
+                    completedAt:
+                      type: string
+                      format: date-time
+                      nullable: true
+                    taskUpid:
+                      type: string
+                      nullable: true
+                    error:
+                      type: string
+                      nullable: true
+                lastRestore:
+                  type: object
+                  nullable: true
+                  properties:
+                    backupName:
+                      type: string
+                    restoredAt:
+                      type: string
+                      format: date-time
+                    restoredBy:
+                      type: string
+                      nullable: true
+      subresources:
+        status: {}
+{{- end }}

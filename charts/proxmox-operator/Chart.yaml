@@ -1,0 +1,26 @@
+apiVersion: v2
+name: proxmox-operator
+description: Kopf-based Proxmox VM operator
+type: application
+version: 0.1.10
+appVersion: "0.1.10"
+home: https://github.com/noderings/operator
+sources:
+  - https://github.com/noderings/operator
+keywords:
+  - proxmox
+  - kubernetes
+  - operator
+  - kopf
+maintainers:
+  - name: Node Rings
+    url: https://github.com/noderings
+dependencies:
+  - name: proxmox-operator-crds
+    version: "0.1.10"
+    repository: file://../proxmox-operator-crds
+    condition: crds.enabled
+  - name: alloy
+    version: "1.5.0"
+    repository: https://grafana.github.io/helm-charts
+    condition: alloy.enabled

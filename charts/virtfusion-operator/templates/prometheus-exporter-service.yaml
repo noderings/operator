@@ -1,0 +1,22 @@
+{{- if .Values.prometheusExporter.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "virtfusion-operator.fullname" . }}-exporter
+  labels:
+    {{- include "virtfusion-operator.prometheusExporter.labels" . | nindent 4 }}
+  {{- with .Values.prometheusExporter.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.prometheusExporter.service.type }}
+  selector:
+    {{- include "virtfusion-operator.prometheusExporter.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ .Values.prometheusExporter.service.port }}
+      targetPort: metrics
+      protocol: TCP
+{{- end }}

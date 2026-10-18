@@ -1,0 +1,30 @@
+{{- if and .Values.operator.enabled .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "proxmox-operator.fullname" . }}-role
+  labels:
+    {{- include "proxmox-operator.operator.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["events", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["vm.proxmox.com"]
+    resources: ["proxmoxvms", "proxmoxvms/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["vm.proxmox.com"]
+    resources: ["proxmoxnodes", "proxmoxnodes/status", "firewallrulesets", "firewallrulesets/status", "vmbackups", "vmbackups/status", "vmsnapshots", "vmsnapshots/status"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["vm.proxmox.com"]
+    resources: ["vncrequests", "vncrequests/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "patch", "delete"]
+{{- end }}

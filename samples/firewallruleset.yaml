@@ -1,0 +1,20 @@
+apiVersion: vm.proxmox.com/v1alpha1
+kind: FirewallRuleSet
+metadata:
+  name: example-web-firewall
+spec:
+  rules:
+    - id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      action: accept
+      protocol: tcp
+      direction: ingress
+      sourcePrefixes:
+        - "0.0.0.0/0"
+        - "::/0"
+      sourcePorts: "1024-65535"
+      destinationPrefixes:
+        - "192.168.1.100/32"
+        - "2001:db8::100/128"
+      destinationPorts: "80,443"
+      description: "Allow HTTP/S from anywhere"
+      position: 0

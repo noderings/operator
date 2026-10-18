@@ -1,0 +1,66 @@
+{{- if .Values.alloy.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "virtfusion-operator.fullname" . }}-alloy-config
+  labels:
+    {{- include "virtfusion-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics-forwarder
+data:
+  config.alloy: |
+    {{- /* Host comes from values (default metrics.noderings.com). Lab is Helm --set, not this file. */}}
+    // Remote write to Mimir via db-auth-gateway (Bearer token; tenant set server-side).
+    prometheus.remote_write "mimir" {
+      {{- if .Values.alloy.agentId }}
+      // Stamped on every series so multi-agent providers can filter/group by agent.
+      external_labels = {
+        agent_id = "{{ .Values.alloy.agentId }}",
+      }
+      {{- end }}
+      endpoint {
+        {{- if .Values.alloy.mimir.tls.enabled }}
+        url = "https://{{ .Values.alloy.mimir.serviceEndpoint }}/api/v1/push"
+        {{- else }}
+        url = "http://{{ .Values.alloy.mimir.serviceEndpoint }}/api/v1/push"
+        {{- end }}
+        {{- if or .Values.alloy.mimir.secretName .Values.alloy.mimir.bearerToken }}
+        authorization {
+          type = "Bearer"
+          credentials = sys.env("MIMIR_BEARER_TOKEN")
+        }
+        {{- end }}
+      }
+    }
+
+    // Prometheus scrape for VirtFusion exporter
+    {{- $firstInstance := index .Values.virtfusion.instances 0 }}
+    {{- $target := $firstInstance.url | replace "https://" "" | replace "http://" "" }}
+    prometheus.scrape "virtfusion" {
+      targets = [{
+        __address__ = "{{ include "virtfusion-operator.fullname" . }}-exporter:{{ .Values.prometheusExporter.service.port }}",
+      }]
+      forward_to = [prometheus.relabel.virtfusion.receiver]
+      scrape_interval = "{{ .Values.alloy.scrape.interval }}"
+      scrape_timeout = "{{ .Values.alloy.scrape.timeout }}"
+      metrics_path = "/metrics"
+    }
+
+    // Drop non-NR vf_* guest series, then set instance to control host
+    prometheus.relabel "virtfusion" {
+      forward_to = [prometheus.remote_write.mimir.receiver]
+      rule {
+        action        = "drop"
+        source_labels = ["__name__", "name"]
+        separator     = ";"
+        // Guest series only (must have a `name` label). Do not drop
+        // vf_memory_allocated_bytes / vf_disk_allocated_bytes — those are
+        // per-hypervisor overallocation (all VMs) and have no name label.
+        regex         = "vf_(cpu_usage_ratio|memory_usage_bytes|memory_size_bytes|disk_read_bytes|disk_write_bytes|network_.*|fs_.*|server_info|traffic_.*);(|[^N].*|N$|N[^R].*|NR$|NR[^-].*)$"
+      }
+      rule {
+        action       = "replace"
+        target_label = "instance"
+        replacement  = "{{ $target }}"
+      }
+    }
+{{- end }}

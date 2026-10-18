@@ -1,0 +1,13 @@
+{{- if and .Values.operator.enabled (.Values.hooks.enabled | default true) }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "proxmox-operator.hookNamespace" . }}
+  labels:
+    noderings.com/hook-jobs: "true"
+    noderings.com/operator-namespace: {{ .Release.Namespace | quote }}
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    {{- include "proxmox-operator.operator.labels" . | nindent 4 }}
+{{- end }}

@@ -1,0 +1,18 @@
+apiVersion: v2
+name: pterodactyl-operator
+description: Kopf operator for Pterodactyl game servers
+type: application
+version: 0.1.11
+appVersion: "0.1.11"
+home: https://github.com/noderings/operator
+sources:
+  - https://github.com/noderings/operator
+dependencies:
+  - name: pterodactyl-operator-crds
+    version: "0.1.0"
+    repository: file://../pterodactyl-operator-crds
+    condition: crds.enabled
+  - name: alloy
+    version: "1.5.0"
+    repository: https://grafana.github.io/helm-charts
+    condition: alloy.enabled

@@ -1,0 +1,59 @@
+{{- if .Values.operator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pterodactyl-operator.fullname" . }}
+  labels:
+    {{- include "pterodactyl-operator.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "pterodactyl-operator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: operator
+  template:
+    metadata:
+      labels:
+        {{- include "pterodactyl-operator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: operator
+    spec:
+      serviceAccountName: {{ include "pterodactyl-operator.fullname" . }}
+      containers:
+        - name: operator
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["kopf", "run", "-A", "-m", "pterodactyl_operator.handlers"]
+          {{- if and (not .Values.consoleGateway.enabled) .Values.operator.consoleBridge }}
+          ports:
+            - name: console
+              containerPort: 9230
+              protocol: TCP
+          {{- end }}
+          env:
+            {{- if and (not .Values.consoleGateway.enabled) .Values.operator.consoleBridge }}
+            - name: PTERODACTYL_CONSOLE_BRIDGE_ADDR
+              value: "0.0.0.0:9230"
+            {{- end }}
+            - name: PTERODACTYL_CATALOG_REFRESH_INTERVAL
+              value: {{ .Values.catalog.refreshInterval | quote }}
+            - name: PTERODACTYL_PANEL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.panel.existingSecret }}
+                  key: PANEL_URL
+            - name: PTERODACTYL_APPLICATION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.panel.existingSecret }}
+                  key: APPLICATION_KEY
+            - name: PTERODACTYL_CLIENT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.panel.existingSecret }}
+                  key: CLIENT_KEY
+            - name: PTERODACTYL_PANEL_USER_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.panel.existingSecret }}
+                  key: PANEL_USER_ID
+{{- end }}

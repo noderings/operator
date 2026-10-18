@@ -1,0 +1,68 @@
+{{- if .Values.alloy.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "solusvm-operator.fullname" . }}-alloy-config
+  labels:
+    {{- include "solusvm-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics-forwarder
+data:
+  config.alloy: |
+    {{- /* Host comes from values (default metrics.noderings.com). Lab is Helm --set, not this file. */}}
+    // Remote write to Mimir via db-auth-gateway (Bearer token; tenant set server-side).
+    prometheus.remote_write "mimir" {
+      {{- if .Values.alloy.agentId }}
+      // Stamped on every series so multi-agent providers can filter/group by agent.
+      external_labels = {
+        agent_id = "{{ .Values.alloy.agentId }}",
+      }
+      {{- end }}
+      endpoint {
+        {{- if .Values.alloy.mimir.tls.enabled }}
+        url = "https://{{ .Values.alloy.mimir.serviceEndpoint }}/api/v1/push"
+        {{- else }}
+        url = "http://{{ .Values.alloy.mimir.serviceEndpoint }}/api/v1/push"
+        {{- end }}
+        {{- if or .Values.alloy.mimir.secretName .Values.alloy.mimir.bearerToken }}
+        authorization {
+          type = "Bearer"
+          credentials = sys.env("MIMIR_BEARER_TOKEN")
+        }
+        {{- end }}
+      }
+    }
+
+    // Prometheus scrape for SolusVM exporter
+    {{- $firstInstance := index .Values.solusvm.instances 0 }}
+    {{- $target := $firstInstance.url | replace "https://" "" | replace "http://" "" }}
+    prometheus.scrape "solusvm" {
+      targets = [{
+        __address__ = "{{ include "solusvm-operator.fullname" . }}-exporter:{{ .Values.prometheusExporter.service.port }}",
+      }]
+      forward_to = [prometheus.relabel.solusvm.receiver]
+      scrape_interval = "{{ .Values.alloy.scrape.interval }}"
+      scrape_timeout = "{{ .Values.alloy.scrape.timeout }}"
+      metrics_path = "/metrics"
+    }
+
+    // Drop non-NR svm_* guest series, then set instance to control host
+    prometheus.relabel "solusvm" {
+      forward_to = [prometheus.remote_write.mimir.receiver]
+      rule {
+        action        = "drop"
+        source_labels = ["__name__", "name"]
+        separator     = ";"
+        // Guest series only (must have a `name` label). Do not drop capacity
+        // series (svm_memory_max_bytes / svm_memory_allocated_bytes /
+        // svm_disk_max_bytes / svm_disk_allocated_bytes) — those have no name
+        // label. The empty-name alternative must not be in the second group
+        // or Prometheus drops them (name="" matches "^$").
+        regex         = "svm_(cpu_usage_ratio|guest_up|memory_usage_bytes|disk_read_bytes|disk_write_bytes|network_.*|server_info);([^N].*|N$|N[^R].*|NR$|NR[^-].*)$"
+      }
+      rule {
+        action       = "replace"
+        target_label = "instance"
+        replacement  = "{{ $target }}"
+      }
+    }
+{{- end }}

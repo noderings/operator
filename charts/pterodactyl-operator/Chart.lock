@@ -1,0 +1,9 @@
+dependencies:
+- name: pterodactyl-operator-crds
+  repository: file://../pterodactyl-operator-crds
+  version: 0.1.0
+- name: alloy
+  repository: https://grafana.github.io/helm-charts
+  version: 1.5.0
+digest: sha256:3c52ce1f7773171f7540ca70f3e13215c4fac4bc44fdf9a3427e0aeb1148df7e
+generated: "2026-10-01T22:40:04.204521888Z"

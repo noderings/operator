@@ -1,0 +1,57 @@
+{{- if .Values.prometheusExporter.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pterodactyl-operator.fullname" . }}-exporter
+  labels:
+    {{- include "pterodactyl-operator.labels" . | nindent 4 }}
+  annotations:
+    # Keep metrics on the agent. pterodactyl-system is not offloaded; this is
+    # defense in depth if someone offloads the namespace by hand.
+    liqo.io/skip-reflection: "true"
+spec:
+  selector:
+    app.kubernetes.io/component: exporter
+  ports:
+    - name: metrics
+      port: {{ .Values.prometheusExporter.port }}
+      targetPort: metrics
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pterodactyl-operator.fullname" . }}-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: exporter
+    spec:
+      containers:
+        - name: exporter
+          image: {{ .Values.prometheusExporter.image }}
+          imagePullPolicy: {{ .Values.prometheusExporter.pullPolicy }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.prometheusExporter.port }}
+          env:
+            - name: PTERODACTYL_PANEL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.panel.existingSecret }}
+                  key: PANEL_URL
+            - name: PTERODACTYL_APPLICATION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.panel.existingSecret }}
+                  key: APPLICATION_KEY
+            - name: PTERODACTYL_CLIENT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.panel.existingSecret }}
+                  key: CLIENT_KEY
+{{- end }}

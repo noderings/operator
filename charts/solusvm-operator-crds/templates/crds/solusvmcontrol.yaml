@@ -1,0 +1,66 @@
+{{- if .Values.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: solusvmcontrols.vm.solusvm.com
+spec:
+  group: vm.solusvm.com
+  scope: Namespaced
+  names:
+    plural: solusvmcontrols
+    singular: solusvmcontrol
+    kind: SolusVMControl
+    shortNames:
+      - svmc
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - endpoint
+              properties:
+                endpoint:
+                  type: string
+                  minLength: 1
+                  description: "SolusVM 2 management node URL (e.g. https://mn.example.com)"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Ready", "Error"]
+                message:
+                  type: string
+                computeResources:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      name:
+                        type: string
+                      host:
+                        type: string
+                      status:
+                        type: string
+                      locationIds:
+                        type: array
+                        items:
+                          type: integer
+                      vmsCount:
+                        type: integer
+                      isLocked:
+                        type: boolean
+                      limits:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+      subresources:
+        status: {}
+{{- end }}

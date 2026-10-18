@@ -1,0 +1,63 @@
+{{- if .Values.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: virtfusioncontrols.vm.virtfusion.com
+spec:
+  group: vm.virtfusion.com
+  scope: Namespaced
+  names:
+    plural: virtfusioncontrols
+    singular: virtfusioncontrol
+    kind: VirtFusionControl
+    shortNames:
+      - vfc
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - endpoint
+              properties:
+                endpoint:
+                  type: string
+                  minLength: 1
+                  description: "VirtFusion control panel URL (e.g. https://cp.example.com)"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Ready", "Error"]
+                message:
+                  type: string
+                hypervisors:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      name:
+                        type: string
+                      groupId:
+                        type: integer
+                      maxCpu:
+                        type: integer
+                      maxMemory:
+                        type: integer
+                      enabled:
+                        type: boolean
+                      maintenance:
+                        type: boolean
+                      ip:
+                        type: string
+      subresources:
+        status: {}
+{{- end }}

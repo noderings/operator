@@ -1,0 +1,187 @@
+{{- if .Values.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: virtfusionvms.vm.virtfusion.com
+spec:
+  group: vm.virtfusion.com
+  scope: Namespaced
+  names:
+    plural: virtfusionvms
+    singular: virtfusionvm
+    kind: VirtFusionVM
+    shortNames:
+      - vfvm
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - virtfusionNodeRef
+                - packageId
+                - operatingSystemId
+                - userExtRelationId
+              properties:
+                virtfusionNodeRef:
+                  type: object
+                  required:
+                    - name
+                  properties:
+                    name:
+                      type: string
+                      minLength: 1
+                      description: "Name of the VirtFusionNode CR"
+                packageId:
+                  type: integer
+                  description: "VirtFusion package id"
+                operatingSystemId:
+                  type: integer
+                  description: "VirtFusion OS template id"
+                userExtRelationId:
+                  type: string
+                  description: "External relation id for the VF user (org UUID)"
+                hostname:
+                  type: string
+                  description: "FQDN hostname for the VM"
+                name:
+                  type: string
+                  description: "Display name (NR-{uuid})"
+                cpuCores:
+                  type: integer
+                memoryMb:
+                  type: integer
+                diskGb:
+                  type: integer
+                networkSpeedInKBs:
+                  type: integer
+                  description: "Inbound network speed in kB/s"
+                networkSpeedOutKBs:
+                  type: integer
+                  description: "Outbound network speed in kB/s"
+                cpuThrottlePercent:
+                  type: integer
+                  minimum: 0
+                  maximum: 99
+                ipv4:
+                  type: array
+                  items:
+                    type: string
+                  description: "Extra IPv4 to add (extra_ipv4). Empty on create so VirtFusion assigns from its IP block."
+                sshPublicKeys:
+                  type: array
+                  items:
+                    type: string
+                  description: "SSH public key material"
+                ipv6:
+                  type: boolean
+                  description: "Ask VirtFusion to assign an IPv6 subnet on build (D14)"
+                guestAdminUser:
+                  type: string
+                  description: "Account for resetPassword (root or Administrator)"
+                blockOutboundSmtp:
+                  type: boolean
+                  default: false
+                  description: >
+                    When true, operator attaches the first VirtFusion firewall
+                    ruleset whose name contains "smtp" (case-insensitive).
+                    When false, that ruleset is removed from the VM if present.
+                    Independent of NodeRings guest firewall APIs.
+                operation:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    requestedAt:
+                      type: string
+                      description: "Unique per apply so Restart/start/stop re-run while type is unchanged (identical spec does not bump generation)."
+                hooks:
+                  type: object
+                  additionalProperties:
+                    type: string
+                    maxLength: 65536
+                  description: "Provider lifecycle hook scripts keyed by operation (created, started, stopped, deleted, restarted, reinstalled)."
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Ready", "Error"]
+                message:
+                  type: string
+                observedGeneration:
+                  type: integer
+                  description: "Spec generation last handled. Restart/start/stop run once per generation (Liqo re-fires kopf on.create)."
+                observedRequestedAt:
+                  type: string
+                  description: "spec.operation.requestedAt last handled. Repeat Restart sends a new requestedAt without changing type."
+                serverId:
+                  type: integer
+                  description: "VirtFusion server id"
+                uuid:
+                  type: string
+                  description: "VirtFusion server UUID"
+                queueId:
+                  type: integer
+                hypervisorId:
+                  type: integer
+                ipv4:
+                  type: array
+                  items:
+                    type: string
+                  description: "IPv4 addresses assigned by VirtFusion"
+                ipv6:
+                  type: string
+                  description: "Primary IPv6 address assigned by VirtFusion"
+                ipv4Gateway:
+                  type: string
+                  description: "IPv4 gateway assigned by VirtFusion"
+                ipv4Prefix:
+                  type: string
+                  description: "Primary IPv4 CIDR prefix length assigned by VirtFusion"
+                ipv6Gateway:
+                  type: string
+                  description: "IPv6 gateway assigned by VirtFusion"
+                ipv6Prefix:
+                  type: string
+                  description: "Primary IPv6 CIDR prefix length assigned by VirtFusion"
+                dnsServers:
+                  type: array
+                  items:
+                    type: string
+                  description: "DNS servers assigned by VirtFusion"
+                lastHook:
+                  type: object
+                  description: "Result of the most recent lifecycle hook Job."
+                  properties:
+                    operation:
+                      type: string
+                    state:
+                      type: string
+                    ranAt:
+                      type: string
+                    message:
+                      type: string
+                    jobName:
+                      type: string
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: ServerId
+          type: integer
+          jsonPath: .status.serverId
+        - name: Node
+          type: string
+          jsonPath: .spec.virtfusionNodeRef.name
+        - name: IPv4
+          type: string
+          jsonPath: .status.ipv4[0]
+      subresources:
+        status: {}
+{{- end }}

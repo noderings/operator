@@ -1,0 +1,92 @@
+# A companion ProxmoxNode CR must exist in the same namespace. It owns the
+# Proxmox endpoint URL — ProxmoxVM CRs never carry proxmoxUrl. The operator
+# resolves the Proxmox endpoint at reconcile time from the linked ProxmoxNode.
+#
+# Example ProxmoxNode (apply first):
+# ---
+# apiVersion: vm.proxmox.com/v1alpha1
+# kind: ProxmoxNode
+# metadata:
+#   name: node-pve-1
+#   namespace: kopf
+# spec:
+#   nodeId: "00000000-0000-0000-0000-000000000001"
+#   name: "Proxmox-VE"
+#   proxmoxUrl: "https://192.168.1.100:8006"
+#   maintenanceMode: false
+apiVersion: vm.proxmox.com/v1alpha1
+kind: ProxmoxVM
+metadata:
+  name: demo-vm8
+  namespace: kopf
+spec:
+  # Reference to the owning ProxmoxNode CR (same namespace). ProxmoxNode is
+  # the single source of truth for the Proxmox API endpoint (spec.proxmoxUrl).
+  proxmoxNodeRef:
+    name: node-pve-1
+  # Optional: VMID seed number. If provided, all VMs will increment from this number (e.g., 9000)
+  # If not provided, Proxmox will auto-assign the next available VMID
+  vmidSeed: 9000
+  # Provider SMTP outbound block (independent of firewallRuleSet).
+  blockOutboundSmtp: true
+  firewallRuleSet:
+    name: example-web-firewall
+    # FirewallRuleSet must be in the same namespace as the ProxmoxVM
+  vmConfig:
+    # Template VMID to clone from
+    templateId: "9000"
+    name: "demo-vm"
+    # Proxmox node where the VM will be created
+    nodeName: "Proxmox-VE"
+    description: "Demo VM created by Proxmox Operator"
+    # Optional desired VMID for non-create operations. Allocated VMID after create
+    # is written to status.vmId (not patched back into spec).
+    vmId: ""  # Optional: desired VMID for non-create operations
+    cpu:
+      cores: 2
+      sockets: 1
+      # Optional: Proxmox guest CPU model (cpu= parameter), from node settings
+      type: "host"
+      # Optional: cpulimit=/cpuunits= from plan (shared VMs). Omit both for dedicated.
+      limit: 2
+      units: 1024
+      # Optional: dedicated-core pinning (set by backend for dedicated plans).
+      # When affinity is set, backend omits limit/units from the CR.
+      # affinity: "0-3,64-67"
+      # numa: true
+    # Memory: plain integer (MB) or with units (2G, 2048M, 2Gi, etc.)
+    memory: "4096"
+    disks:
+      - name: "rootdisk"
+        storage: "local-lvm"
+        size: "12G"
+    networks:
+      - name: "net0"
+        bridge: "vmbr0"
+        model: "virtio"
+        # Optional: allocated MAC address; omit to let Proxmox auto-assign
+        macAddress: "BC:24:11:00:00:01"
+        # Optional: 802.1Q VLAN tag (tag=); omit or 0 = untagged
+        vlanId: 100
+        # Optional: bandwidth cap in MB/s (rate=); omit or 0 = unlimited
+        rateLimitMBps: 12.5
+    # Optional cloud-init static IP (when platform.self_managed_dhcp is false):
+    # cloudInit:
+    #   hostname: "demo-vm"
+    #   staticIpConfig:
+    #     ipv4Address: "10.0.0.5"
+    #     ipv4Prefix: "24"
+    #     ipv4Gateway: "10.0.0.1"
+    #     additionalIpv4Addresses:
+    #       - address: "10.0.0.6"
+    #         prefix: "24"
+    #         gateway: "10.0.0.1"
+  operation:
+    # Available operation types:
+    # - created: Create and start the VM (allocated vmId written to status.vmId)
+    # - started: Start the VM (resolved by name; status.vmId preferred if present)
+    # - stopped: Stop the VM
+    # - restarted: Restart the VM (hard reset)
+    # - reinstalled: Reinstall the VM from template
+    # - deleted: Delete the VM (vmId must be specified in vmConfig)
+    type: created

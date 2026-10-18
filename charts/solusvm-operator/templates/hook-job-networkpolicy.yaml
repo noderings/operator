@@ -1,0 +1,76 @@
+{{- if and .Values.networkPolicy.enabled .Values.operator.enabled (.Values.hooks.enabled | default true) }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "solusvm-operator.fullname" . }}-hook-jobs
+  namespace: {{ include "solusvm-operator.hookNamespace" . }}
+  labels:
+    {{- include "solusvm-operator.operator.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      noderings.com/hook-runner: "true"
+  policyTypes:
+    - Ingress
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+              - 127.0.0.0/8
+              - 224.0.0.0/4
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    - to:
+        - ipBlock:
+            cidr: ::/0
+            except:
+              - fc00::/7
+              - fe80::/10
+              - ::1/128
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    {{- range (.Values.hooks.privateEgress | default list) }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+            {{- with .except }}
+            except:
+              {{- range . }}
+              - {{ . | quote }}
+              {{- end }}
+            {{- end }}
+    {{- end }}
+    {{- range (.Values.hooks.extraEgress | default list) }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ .port }}
+    {{- end }}
+{{- end }}

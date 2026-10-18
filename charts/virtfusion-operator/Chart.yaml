@@ -1,0 +1,26 @@
+apiVersion: v2
+name: virtfusion-operator
+description: Kopf-based VirtFusion VM operator
+type: application
+version: 0.1.10
+appVersion: "0.1.10"
+home: https://github.com/noderings/operator
+sources:
+  - https://github.com/noderings/operator
+keywords:
+  - virtfusion
+  - kubernetes
+  - operator
+  - kopf
+maintainers:
+  - name: Node Rings
+    url: https://github.com/noderings
+dependencies:
+  - name: virtfusion-operator-crds
+    version: "0.1.10"
+    repository: file://../virtfusion-operator-crds
+    condition: crds.enabled
+  - name: alloy
+    version: "1.5.0"
+    repository: https://grafana.github.io/helm-charts
+    condition: alloy.enabled

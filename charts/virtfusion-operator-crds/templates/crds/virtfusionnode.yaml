@@ -1,0 +1,64 @@
+{{- if .Values.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: virtfusionnodes.vm.virtfusion.com
+spec:
+  group: vm.virtfusion.com
+  scope: Namespaced
+  names:
+    plural: virtfusionnodes
+    singular: virtfusionnode
+    kind: VirtFusionNode
+    shortNames:
+      - vfn
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - hypervisorId
+                - hypervisorGroupId
+                - controlRef
+              properties:
+                hypervisorId:
+                  type: integer
+                  description: "VirtFusion hypervisor host id"
+                hypervisorGroupId:
+                  type: integer
+                  description: "VirtFusion hypervisor group id (used as hypervisorId in POST /servers)"
+                controlRef:
+                  type: object
+                  required:
+                    - name
+                  properties:
+                    name:
+                      type: string
+                      minLength: 1
+                      description: "Name of the VirtFusionControl CR"
+                maintenanceMode:
+                  type: boolean
+                  default: false
+                  description: "When enabled, reconciliation skips state checks"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Ready", "Error"]
+                message:
+                  type: string
+                maintenanceMode:
+                  type: boolean
+                groupResources:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+      subresources:
+        status: {}
+{{- end }}

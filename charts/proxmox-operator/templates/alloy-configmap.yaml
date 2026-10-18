@@ -1,0 +1,94 @@
+{{- if .Values.alloy.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "proxmox-operator.fullname" . }}-alloy-config
+  labels:
+    {{- include "proxmox-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics-forwarder
+data:
+  config.alloy: |
+    {{- /* Host comes from values (default metrics.noderings.com). Lab is Helm --set, not this file. */}}
+    // Remote write to Mimir via db-auth-gateway (Bearer token; tenant set server-side).
+    prometheus.remote_write "mimir" {
+      {{- if .Values.alloy.agentId }}
+      // Stamped on every series so multi-agent providers can filter/group by agent.
+      external_labels = {
+        agent_id = "{{ .Values.alloy.agentId }}",
+      }
+      {{- end }}
+      endpoint {
+        {{- if .Values.alloy.mimir.tls.enabled }}
+        url = "https://{{ .Values.alloy.mimir.serviceEndpoint }}/api/v1/push"
+        {{- else }}
+        url = "http://{{ .Values.alloy.mimir.serviceEndpoint }}/api/v1/push"
+        {{- end }}
+        {{- /* Prefer env from alloy.mimir.secretName (CLI creates Secret); fall back to values. */}}
+        {{- if or .Values.alloy.mimir.secretName .Values.alloy.mimir.bearerToken }}
+        authorization {
+          type = "Bearer"
+          credentials = sys.env("MIMIR_BEARER_TOKEN")
+        }
+        {{- end }}
+      }
+    }
+
+    // Prometheus scrape configuration for each Proxmox instance
+    {{- range $idx, $instance := .Values.proxmox.instances }}
+    {{- $target := $instance.url | replace "https://" "" | replace "http://" "" }}
+    {{- $instanceId := $instance.id | replace "-" "_" }}
+    prometheus.scrape "proxmox_{{ $instanceId }}" {
+      targets = [{
+        __address__ = "{{ include "proxmox-operator.fullname" $ }}-exporter:{{ $.Values.prometheusExporter.service.port }}",
+      }]
+      forward_to = [prometheus.relabel.proxmox_{{ $instanceId }}.receiver]
+      scrape_interval = "{{ $.Values.alloy.scrape.interval }}"
+      scrape_timeout = "{{ $.Values.alloy.scrape.timeout }}"
+      metrics_path = "/pve"
+      params = {
+        target = ["{{ $target }}"],
+        cluster = ["1"],
+        node = ["1"],
+      }
+    }
+
+    // Drop non-NR qemu/lxc first, then add instance label
+    prometheus.relabel "proxmox_{{ $instanceId }}" {
+      forward_to = [prometheus.remote_write.mimir.receiver]
+      // Drop VM-level pve_* (qemu/lxc) where name does not start with NR- (RE2: no lookahead)
+      // Name: empty (first |) or [^N].*, N$, N[^R].*, NR$, NR[^-].*
+      // Rule 1a: pve_up (StatusCollector) – has id,name; separate rule to avoid long-alternation edge cases
+      rule {
+        action        = "drop"
+        source_labels = ["__name__", "id", "name"]
+        separator     = ";"
+        regex         = "pve_up;(qemu|lxc)/[^;]*;(|[^N].*|N$|N[^R].*|NR$|NR[^-].*)$"
+      }
+      // Rule 1b: other VM-level pve_* with id+name
+      rule {
+        action        = "drop"
+        source_labels = ["__name__", "id", "name"]
+        separator     = ";"
+        regex         = "(pve_cpu_usage_ratio|pve_memory_usage_bytes|pve_uptime_seconds|pve_memory_size_bytes|pve_cpu_usage_limit|pve_disk_size_bytes|pve_disk_usage_bytes|pve_network_transmit_bytes|pve_network_receive_bytes|pve_disk_write_bytes|pve_disk_read_bytes|pve_network_transmit_bytes_total|pve_network_receive_bytes_total|pve_disk_written_bytes_total|pve_disk_read_bytes_total);(qemu|lxc)/[^;]*;(|[^N].*|N$|N[^R].*|NR$|NR[^-].*)$"
+      }
+      rule {
+        action        = "drop"
+        source_labels = ["__name__", "id", "name"]
+        separator     = ";"
+        regex         = "pve_guest_info;(qemu|lxc)/[^;]*;(|[^N].*|N$|N[^R].*|NR$|NR[^-].*)$"
+      }
+      // pve_ha_state and pve_lock_state: labels [id,state] only (no name in exporter). Drop all qemu/lxc (NR and non-NR); to keep NR, exporter would need a name label.
+      rule {
+        action        = "drop"
+        source_labels = ["__name__", "id"]
+        separator     = ";"
+        regex         = "(pve_ha_state|pve_lock_state);(qemu|lxc)/[^;]*"
+      }
+      rule {
+        action       = "replace"
+        target_label = "instance"
+        replacement  = "{{ $target }}"
+      }
+    }
+    {{- end }}
+{{- end }}

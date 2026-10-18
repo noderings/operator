@@ -1,0 +1,16 @@
+apiVersion: v2
+name: virtfusion-operator-crds
+description: CustomResourceDefinitions for the VirtFusion VM operator (vm.virtfusion.com)
+type: application
+version: 0.1.10
+appVersion: "0.1.10"
+home: https://github.com/noderings/operator
+sources:
+  - https://github.com/noderings/operator
+keywords:
+  - virtfusion
+  - kubernetes
+  - crd
+maintainers:
+  - name: Node Rings
+    url: https://github.com/noderings

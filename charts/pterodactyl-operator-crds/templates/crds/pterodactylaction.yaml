@@ -1,0 +1,41 @@
+{{- if .Values.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: pterodactylactions.gs.pterodactyl.com
+spec:
+  group: gs.pterodactyl.com
+  scope: Namespaced
+  names:
+    plural: pterodactylactions
+    singular: pterodactylaction
+    kind: PterodactylAction
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [identifier, action]
+              properties:
+                identifier: {type: string}
+                action: {type: string}
+                payload:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+              properties:
+                phase: {type: string}
+                message: {type: string}
+                result:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+{{- end }}

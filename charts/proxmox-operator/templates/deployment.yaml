@@ -1,0 +1,142 @@
+{{- if .Values.operator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "proxmox-operator.fullname" . }}
+  labels:
+    {{- include "proxmox-operator.operator.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit | default 10 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "proxmox-operator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: operator
+  template:
+    metadata:
+      labels:
+        {{- include "proxmox-operator.operator.labels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: {{ .Values.operator.automountServiceAccountToken }}
+      serviceAccountName: {{ default (include "proxmox-operator.serviceAccountName" .) .Values.serviceAccount.name }}
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- range .Values.image.pullSecrets }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      securityContext:
+        {{- include "proxmox-operator.podSecurityContext" (dict "context" . "overrides" .Values.operator.podSecurityContext) | nindent 8 }}
+      containers:
+        - name: operator
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              ulimit -n {{ .Values.securityContext.nofile | default 65536 }} 2>/dev/null || true
+              exec kopf run -A -m proxmox_operator.handlers
+          securityContext:
+            {{- include "proxmox-operator.containerSecurityContext" (dict "context" . "overrides" .Values.operator.containerSecurityContext) | nindent 12 }}
+          env:
+            - name: PROXMOX_VERIFY_SSL
+              value: {{ .Values.proxmox.verifySSL | quote }}
+            - name: PROXMOX_TIMEOUT_SECONDS
+              value: {{ .Values.proxmox.timeoutSeconds | quote }}
+            - name: BACKUP_VZDUMP_POST_DELAY_SECONDS
+              value: {{ .Values.backup.vzdumpPostDelaySeconds | quote }}
+            - name: HOOKS_ENABLED
+              value: {{ (.Values.hooks.enabled | default true) | quote }}
+            - name: HOOKS_JOB_NAMESPACE
+              value: {{ include "proxmox-operator.hookNamespace" . | quote }}
+            - name: HOOKS_PROVIDER_SECRET_NAME
+              value: {{ include "proxmox-operator.hooksProviderSecretName" . | quote }}
+            - name: HOOKS_JOB_IMAGE
+              value: {{ (.Values.hooks.image | default "") | quote }}
+            - name: HOOKS_OPERATOR_IMAGE
+              value: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+            - name: HOOKS_TIMEOUT_SECONDS
+              value: {{ (.Values.hooks.timeoutSeconds | default 300) | quote }}
+            - name: HOOKS_MAX_CONCURRENT
+              value: {{ (.Values.hooks.maxConcurrent | default 5) | quote }}
+            - name: HOOKS_TTL_SECONDS
+              value: {{ (.Values.hooks.ttlSecondsAfterFinished | default 86400) | quote }}
+            - name: HOOKS_CPU_LIMIT
+              value: {{ ((.Values.hooks.resources).limits.cpu | default "100m") | quote }}
+            - name: HOOKS_MEM_LIMIT
+              value: {{ ((.Values.hooks.resources).limits.memory | default "128Mi") | quote }}
+            - name: HOOKS_CPU_REQUEST
+              value: {{ ((.Values.hooks.resources).requests.cpu | default "50m") | quote }}
+            - name: HOOKS_MEM_REQUEST
+              value: {{ ((.Values.hooks.resources).requests.memory | default "64Mi") | quote }}
+            {{- range .Values.proxmox.instances }}
+            {{- $credSecret := include "proxmox-operator.credentialsSecretName" (dict "root" $ "instance" .) }}
+            - name: PROXMOX_{{ .id | upper | replace "-" "_" }}_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $credSecret }}
+                  key: PROXMOX_URL
+            - name: PROXMOX_{{ .id | upper | replace "-" "_" }}_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $credSecret }}
+                  key: PROXMOX_USERNAME
+            - name: PROXMOX_{{ .id | upper | replace "-" "_" }}_TOKEN_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $credSecret }}
+                  key: PROXMOX_TOKEN_ID
+            - name: PROXMOX_{{ .id | upper | replace "-" "_" }}_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $credSecret }}
+                  key: PROXMOX_TOKEN_SECRET
+            {{- end }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.operator.mountServiceAccountToken }}
+            - name: kube-api-access
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.operator.mountServiceAccountToken }}
+        - name: kube-api-access
+          projected:
+            defaultMode: 420
+            sources:
+              - serviceAccountToken:
+                  expirationSeconds: 3600
+                  path: token
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+              - downwardAPI:
+                  items:
+                    - path: namespace
+                      fieldRef:
+                        fieldPath: metadata.namespace
+        {{- end }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+{{- end }}

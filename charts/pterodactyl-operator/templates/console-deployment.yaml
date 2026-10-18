@@ -1,0 +1,63 @@
+{{- if .Values.consoleGateway.enabled }}
+{{- if ne (int .Values.consoleGateway.replicas) 1 }}
+{{- fail "consoleGateway.replicas must be 1 (HMAC grant anti-replay is process-local)" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pterodactyl-operator.fullname" . }}-console
+  namespace: {{ .Values.consoleGateway.namespace }}
+  labels:
+    {{- include "pterodactyl-operator.consoleGateway.labels" . | nindent 4 }}
+spec:
+  # Must stay 1: bridge anti-replay for HMAC grants is in-process only.
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "pterodactyl-operator.consoleGateway.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pterodactyl-operator.consoleGateway.labels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: console
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "pterodactyl_operator.bridge"]
+          ports:
+            - name: console
+              containerPort: {{ .Values.consoleGateway.port }}
+              protocol: TCP
+          env:
+            - name: PTERODACTYL_CONSOLE_BRIDGE_ADDR
+              value: "0.0.0.0:{{ .Values.consoleGateway.port }}"
+            - name: PTERODACTYL_CONSOLE_GATEWAY_REPLICAS
+              value: "1"
+            - name: PTERODACTYL_PANEL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.panel.existingSecret }}
+                  key: PANEL_URL
+            - name: PTERODACTYL_APPLICATION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.panel.existingSecret }}
+                  key: APPLICATION_KEY
+            - name: PTERODACTYL_CLIENT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.panel.existingSecret }}
+                  key: CLIENT_KEY
+            - name: PTERODACTYL_PANEL_USER_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.panel.existingSecret }}
+                  key: PANEL_USER_ID
+          readinessProbe:
+            tcpSocket:
+              port: console
+            initialDelaySeconds: 2
+            periodSeconds: 5
+{{- end }}

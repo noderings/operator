@@ -1,0 +1,107 @@
+{{- if .Values.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: proxmoxnodes.vm.proxmox.com
+spec:
+  group: vm.proxmox.com
+  scope: Namespaced
+  names:
+    plural: proxmoxnodes
+    singular: proxmoxnode
+    kind: ProxmoxNode
+    shortNames:
+      - pxn
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - nodeId
+                - name
+                - proxmoxUrl
+              properties:
+                nodeId:
+                  type: string
+                  description: "Backend API Node ID (UUID)"
+                name:
+                  type: string
+                  description: "Proxmox node name (API path /nodes/{name}/...)"
+                maintenanceMode:
+                  type: boolean
+                  description: "When enabled, reconciliation loop skips Proxmox state checks"
+                  default: false
+                proxmoxUrl:
+                  type: string
+                  minLength: 1
+                  description: "Proxmox API base URL (platform endpoint). Single source of truth: every ProxmoxVM that references this ProxmoxNode resolves its endpoint from here."
+                provisioningDefaults:
+                  type: object
+                  description: "Mirror of node-level provisioning settings for ops visibility and GitOps review. The operator provisions from ProxmoxVM fields, not from this block. MAC prefix is intentionally never mirrored here."
+                  properties:
+                    networkBridge:
+                      type: string
+                      description: "Proxmox Linux bridge for VM primary NIC (e.g. vmbr0)"
+                    networkName:
+                      type: string
+                      description: "Proxmox net device key for primary NIC (e.g. net0)"
+                    networkModel:
+                      type: string
+                      description: "Proxmox NIC model (virtio, e1000, rtl8139, vmxnet3, ...)"
+                    networkVlanId:
+                      type: integer
+                      minimum: 0
+                      maximum: 4094
+                      description: "802.1Q VLAN tag; 0 = untagged"
+                    proxmoxCpuType:
+                      type: string
+                      description: "Proxmox cpu= guest CPU model for VMs on this node (e.g. host)"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Ready", "Error"]
+                message:
+                  type: string
+                observedGeneration:
+                  type: integer
+                nodeDetails:
+                  type: object
+                  description: "Observed node facts collected by the operator from Proxmox (status only; Liqo mirrors remote→local)."
+                  properties:
+                    cpu:
+                      type: object
+                      description: "CPU details from Proxmox GET /nodes/{name}/status cpuinfo"
+                      properties:
+                        phase:
+                          type: string
+                          enum: ["Pending", "Ready", "Error"]
+                        brand:
+                          type: string
+                          description: "intel, amd, arm, or unknown"
+                        model:
+                          type: string
+                        cores:
+                          type: integer
+                          minimum: 0
+                        sockets:
+                          type: integer
+                          minimum: 0
+                        mhz:
+                          type: number
+                          description: "CPU frequency in MHz from Proxmox cpuinfo"
+                        collectedAt:
+                          type: string
+                          description: "RFC3339 timestamp when collected from Proxmox"
+                        lastError:
+                          type: string
+      subresources:
+        status: {}
+{{- end }}

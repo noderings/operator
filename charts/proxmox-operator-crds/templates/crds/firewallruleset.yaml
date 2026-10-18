@@ -1,0 +1,103 @@
+{{- if .Values.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: firewallrulesets.vm.proxmox.com
+spec:
+  group: vm.proxmox.com
+  scope: Namespaced
+  names:
+    plural: firewallrulesets
+    singular: firewallruleset
+    kind: FirewallRuleSet
+    shortNames:
+      - frs
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - rules
+              properties:
+                targets:
+                  type: array
+                  description: "List of target ProxmoxVM CR names (optional, can be computed from ProxmoxVM CRs)"
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: "Name of the ProxmoxVM CR"
+                      namespace:
+                        type: string
+                        description: "Namespace of the ProxmoxVM CR (optional, defaults to same namespace)"
+                rules:
+                  type: array
+                  description: "List of firewall rules"
+                  items:
+                    type: object
+                    required:
+                      - id
+                      - action
+                      - protocol
+                      - direction
+                    properties:
+                      id:
+                        type: string
+                        description: "Rule UUID - stable identifier that doesn't change with position"
+                      action:
+                        type: string
+                        enum: ["accept", "drop", "reject"]
+                        description: "Action to take for matching traffic"
+                      protocol:
+                        type: string
+                        description: "Protocol to match. Use Proxmox protocol names (tcp, udp, icmp, ipv6-icmp, gre, …) or any to match all (Proxmox proto left unset)."
+                      position:
+                        type: integer
+                        minimum: 0
+                        description: "Rule position (0, 1, 2, 3... sequential order). Optional."
+                      direction:
+                        type: string
+                        enum: ["ingress", "egress"]
+                        description: "Direction of this rule (ingress or egress)"
+                      sourcePrefixes:
+                        type: array
+                        description: "Source IP prefixes (CIDR notation)"
+                        items:
+                          type: string
+                      destinationPrefixes:
+                        type: array
+                        description: "Destination IP prefixes (CIDR notation)"
+                        items:
+                          type: string
+                      sourcePorts:
+                        type: string
+                        description: "Source port or range, e.g., '80' or '8000-9000'"
+                      destinationPorts:
+                        type: string
+                        description: "Destination port or range, e.g., '443' or '5000-5010'"
+                      description:
+                        type: string
+                        description: "Optional description for the rule"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Ready", "Error"]
+                  description: "Current phase of the FirewallRuleSet"
+                message:
+                  type: string
+                  description: "Human-readable message describing the current status"
+                observedGeneration:
+                  type: integer
+                  description: "Generation of the spec that was last reconciled"
+      subresources:
+        status: {}
+{{- end }}

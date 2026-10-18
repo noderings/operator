@@ -1,0 +1,158 @@
+{{- if .Values.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: vmsnapshots.vm.proxmox.com
+spec:
+  group: vm.proxmox.com
+  scope: Namespaced
+  names:
+    plural: vmsnapshots
+    singular: vmsnapshot
+    kind: VMSnapshot
+    shortNames:
+      - vmsnap
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - vmRef
+              properties:
+                vmRef:
+                  type: object
+                  required:
+                    - name
+                  properties:
+                    name:
+                      type: string
+                      description: "Name of the VirtualMachine CR this snapshot belongs to"
+                description:
+                  type: string
+                  description: "Optional description for the snapshot"
+                createRequest:
+                  type: object
+                  nullable: true
+                  properties:
+                    snapshotName:
+                      type: string
+                      description: "Snapshot name defined by backend (format: snapshot_{YYYYMMDD}_{HHMM})"
+                    description:
+                      type: string
+                      description: "Description for the snapshot to be created"
+                restoreRequest:
+                  type: object
+                  nullable: true
+                  properties:
+                    snapshotName:
+                      type: string
+                      description: "Name of the snapshot to restore"
+                    stopVm:
+                      type: boolean
+                      description: "Whether to stop the VM before restoring"
+                deleteRequest:
+                  type: object
+                  nullable: true
+                  properties:
+                    snapshotName:
+                      type: string
+                      description: "Name of the snapshot to delete"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Active", "Error", "Disabled"]
+                  description: "Current phase of the snapshot CR"
+                snapshotCount:
+                  type: integer
+                  description: "Number of snapshots tracked in this CR"
+                taskUpid:
+                  type: string
+                  nullable: true
+                  description: "Proxmox task UPID for snapshot creation (set by operator)"
+                snapshots:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: "Snapshot name in Proxmox"
+                      createdAt:
+                        type: string
+                        format: date-time
+                        description: "Timestamp when snapshot was created"
+                      status:
+                        type: string
+                        enum: ["active", "deleted", "expired"]
+                        description: "Status of the snapshot"
+                restoreStatus:
+                  type: object
+                  properties:
+                    state:
+                      type: string
+                      enum: ["none", "requested", "restoring", "completed", "failed"]
+                      description: "Current restore state"
+                    requestedSnapshotName:
+                      type: string
+                      nullable: true
+                      description: "Name of the snapshot being restored"
+                    requestedAt:
+                      type: string
+                      format: date-time
+                      nullable: true
+                      description: "Timestamp when restore was requested"
+                    startedAt:
+                      type: string
+                      format: date-time
+                      nullable: true
+                      description: "Timestamp when restore started"
+                    completedAt:
+                      type: string
+                      format: date-time
+                      nullable: true
+                      description: "Timestamp when restore completed"
+                    taskUpid:
+                      type: string
+                      nullable: true
+                      description: "Proxmox task UPID for restore operation (set by operator)"
+                    error:
+                      type: string
+                      nullable: true
+                      description: "Error message if restore failed"
+                lastRestore:
+                  type: object
+                  nullable: true
+                  properties:
+                    snapshotName:
+                      type: string
+                      description: "Name of the last restored snapshot"
+                    restoredAt:
+                      type: string
+                      format: date-time
+                      description: "Timestamp when snapshot was restored"
+                    restoredBy:
+                      type: string
+                      nullable: true
+                      description: "User ID who initiated the restore"
+                lastDelete:
+                  type: object
+                  nullable: true
+                  properties:
+                    snapshotName:
+                      type: string
+                      description: "Name of the last deleted snapshot"
+                    deletedAt:
+                      type: string
+                      format: date-time
+                      description: "Timestamp when snapshot was deleted"
+      subresources:
+        status: {}
+{{- end }}

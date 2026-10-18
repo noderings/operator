@@ -1,0 +1,164 @@
+crds:
+  enabled: true
+operator:
+  enabled: true
+  automountServiceAccountToken: true
+  # When consoleGateway.enabled, the bridge runs in pterodactyl-console instead.
+  consoleBridge: false
+image:
+  registry: harbor.noderings.com
+  repository: nrings/pterodactyl-operator
+  # Hotfix past the shared v0.1.10 image: refuse a create when the panel
+  # does not list the Wings node as deployable. Chart OCI tag is 0.1.11;
+  # the image tag keeps the v prefix so it does not overwrite the chart.
+  tag: "v0.1.11"
+  pullPolicy: IfNotPresent
+serviceAccount:
+  create: true
+rbac:
+  create: true
+panel:
+  url: ""
+  existingSecret: operator-pterodactyl-operator-panel-credentials
+# How often the operator lists panel nests and eggs and updates PterodactylGameCatalog.
+# A number is seconds. s, m, and h are also accepted. Default is 15 minutes.
+catalog:
+  refreshInterval: "15m"
+prometheusExporter:
+  enabled: true
+  image: harbor.noderings.com/nrings/prometheus-pterodactyl-exporter:0.1.2
+  pullPolicy: IfNotPresent
+  port: 9222
+
+# Console / file bridge. Same role as vnc-gateway for hypervisors: provider-local
+# namespace offloaded to the control plane as {agentID}-pterodactyl-console.
+# Operator, exporter, and Alloy stay in pterodactyl-system (not offloaded).
+consoleGateway:
+  enabled: true
+  namespace: pterodactyl-console
+  # Must remain 1: HMAC grant anti-replay is process-local in the bridge.
+  replicas: 1
+  port: 9230
+  service:
+    enabled: true
+    annotations: {}
+
+alloy:
+  enabled: true
+
+  global:
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+
+  serviceAccount:
+    automountServiceAccountToken: false
+
+  rbac:
+    create: false
+
+  networkPolicy:
+    enabled: true
+    policyTypes:
+      - Ingress
+      - Egress
+    ingress:
+      - from:
+          - podSelector: {}
+        ports:
+          - port: 12345
+            protocol: TCP
+    egress:
+      - ports:
+          - port: 9222
+            protocol: TCP
+      - ports:
+          - port: 443
+            protocol: TCP
+      - ports:
+          - port: 80
+            protocol: TCP
+      - ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+
+  controller:
+    volumes:
+      extra:
+        - name: tmp
+          emptyDir: {}
+
+  configReloader:
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
+    resources:
+      requests:
+        cpu: 10m
+        memory: 50Mi
+      limits:
+        cpu: 50m
+        memory: 64Mi
+
+  alloy:
+    envFrom: []
+    configMap:
+      create: false
+      name: operator-pterodactyl-operator-alloy-config
+    image:
+      repository: grafana/alloy
+      tag: v1.12.1
+      pullPolicy: IfNotPresent
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
+    mounts:
+      extra:
+        - name: tmp
+          mountPath: /tmp
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+  agentId: ""
+
+  # Production remote_write host. Lab is Helm --set, not this file.
+  mimir:
+    serviceEndpoint: "metrics.noderings.com"
+    tls:
+      enabled: true
+    secretName: "mimir-credentials"
+    bearerToken: ""
+
+  scrape:
+    interval: 30s
+    timeout: 10s
+revisionHistoryLimit: 10
+securityContext:
+  nofile: 65536

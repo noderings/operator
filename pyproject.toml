@@ -1,0 +1,76 @@
+[tool.poetry]
+name = "proxmox-operator"
+version = "0.1.0"
+description = "Kopf-based operator for Proxmox VMs"
+authors = ["Node Rings <https://github.com/noderings>"]
+license = "Apache-2.0"
+readme = "README.md"
+packages = [
+  { include = "proxmox_operator", from = "src" },
+  { include = "virtfusion_operator", from = "src" },
+  { include = "solusvm_operator", from = "src" },
+  { include = "noderings_hooks", from = "src" },
+  { include = "pterodactyl_operator", from = "src" },
+]
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.13"
+kopf = "~1.38.0"
+requests = "^2.31.0"
+pydantic = "^2.8.0"
+kubernetes = ">=29,<32"
+proxmoxer = "^2.2.0"
+pycdlib = "^1.14.0"
+jinja2 = "^3.1.0"
+pyyaml = "^6.0.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.8.0"
+ruff = "^0.15.4"
+mypy = "^1.11.0"
+pytest = "^8.2.0"
+types-requests = "^2.31.0.10"
+pre-commit = "^3.8.0"
+
+[tool.ruff]
+line-length = 100
+
+[tool.black]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+strict = false
+
+# Kopf decorator stubs expect full handler signatures; our handlers use a minimal subset.
+[[tool.mypy.overrides]]
+module = [
+  "proxmox_operator.handlers",
+  "proxmox_operator.reconcile",
+  "proxmox_operator.node_handler",
+  "proxmox_operator.vnc_reconcile",
+  "proxmox_operator.snapshot_reconcile",
+  "proxmox_operator.firewall_reconcile",
+  "proxmox_operator.backup_reconcile",
+  "solusvm_operator.handlers",
+  "solusvm_operator.handlers.control",
+  "solusvm_operator.handlers.node",
+  "solusvm_operator.handlers.vm",
+  "solusvm_operator.handlers.vnc",
+  "virtfusion_operator.handlers",
+  "virtfusion_operator.handlers.control",
+  "virtfusion_operator.handlers.node",
+  "virtfusion_operator.handlers.vm",
+  "virtfusion_operator.handlers.vnc",
+  "pterodactyl_operator.handlers",
+  "pterodactyl_operator.handlers.server",
+  "pterodactyl_operator.handlers.action",
+  "pterodactyl_operator.handlers.catalog",
+  "noderings_hooks.watcher",
+]
+disable_error_code = ["arg-type", "union-attr", "assignment"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

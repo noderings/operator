@@ -1,0 +1,9 @@
+dependencies:
+- name: solusvm-operator-crds
+  repository: file://../solusvm-operator-crds
+  version: 0.1.10
+- name: alloy
+  repository: https://grafana.github.io/helm-charts
+  version: 1.5.0
+digest: sha256:41c41fd8cf2f0588ada7338e087457e8a69ea749cdfe505fad7998a38a842aeb
+generated: "2026-10-15T21:25:28.231724+02:00"

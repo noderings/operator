@@ -1,0 +1,39 @@
+{{- if and .Values.consoleGateway.enabled .Values.consoleGateway.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: pterodactyl-console
+  namespace: {{ .Values.consoleGateway.namespace }}
+  labels:
+    {{- include "pterodactyl-operator.consoleGateway.labels" . | nindent 4 }}
+  annotations:
+    # Panel credentials stay on the agent; do not reflect Secrets from this NS.
+    # The Service itself must reflect so the control plane can dial the bridge.
+    {{- with .Values.consoleGateway.service.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    {{- include "pterodactyl-operator.consoleGateway.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: console
+      port: {{ .Values.consoleGateway.port }}
+      targetPort: console
+      protocol: TCP
+{{- else if and .Values.operator.enabled .Values.operator.consoleBridge (not .Values.consoleGateway.enabled) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: pterodactyl-console
+  labels:
+    {{- include "pterodactyl-operator.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "pterodactyl-operator.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+  ports:
+    - name: console
+      port: 9230
+      targetPort: console
+      protocol: TCP
+{{- end }}

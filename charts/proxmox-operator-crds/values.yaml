@@ -1,0 +1,5 @@
+# Install vm.proxmox.com CRDs (ProxmoxNode, ProxmoxVM, FirewallRuleSet, VMBackup, VMSnapshot, VNCRequest).
+enabled: true
+
+nameOverride: ""
+fullnameOverride: ""

@@ -1,0 +1,91 @@
+{{- if .Values.prometheusExporter.enabled }}
+{{- $firstInstance := index .Values.solusvm.instances 0 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "solusvm-operator.fullname" . }}-exporter
+  labels:
+    {{- include "solusvm-operator.prometheusExporter.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit | default 10 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "solusvm-operator.prometheusExporter.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "solusvm-operator.prometheusExporter.labels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: {{ .Values.prometheusExporter.automountServiceAccountToken }}
+      securityContext:
+        {{- include "solusvm-operator.podSecurityContext" (dict "context" . "overrides" .Values.prometheusExporter.podSecurityContext) | nindent 8 }}
+      containers:
+        - name: prometheus-solusvm-exporter
+          image: "{{ .Values.prometheusExporter.image.repository }}:{{ .Values.prometheusExporter.image.tag }}"
+          imagePullPolicy: {{ .Values.prometheusExporter.image.pullPolicy }}
+          ports:
+            - name: metrics
+              containerPort: 9179
+              protocol: TCP
+          securityContext:
+            {{- include "solusvm-operator.containerSecurityContext" (dict "context" . "overrides" .Values.prometheusExporter.containerSecurityContext) | nindent 12 }}
+          env:
+            {{- $credSecret := include "solusvm-operator.credentialsSecretName" (dict "root" . "instance" $firstInstance) }}
+            - name: SOLUSVM_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $credSecret }}
+                  key: SOLUSVM_URL
+            - name: SOLUSVM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $credSecret }}
+                  key: SOLUSVM_TOKEN
+          command:
+            - /app/prometheus-solusvm-exporter
+          args:
+            - --listen=:9179
+            - --only-name-prefix=NR-
+            {{- if not .Values.solusvm.verifySSL }}
+            - --insecure-skip-tls
+            {{- end }}
+          resources:
+{{ toYaml .Values.prometheusExporter.resources | indent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          livenessProbe:
+            tcpSocket:
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- if .Values.prometheusExporter.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.prometheusExporter.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.prometheusExporter.affinity }}
+      affinity:
+{{ toYaml .Values.prometheusExporter.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.prometheusExporter.tolerations }}
+      tolerations:
+{{ toYaml .Values.prometheusExporter.tolerations | indent 8 }}
+      {{- end }}
+{{- end }}
