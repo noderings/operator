@@ -1,5 +1,9 @@
 ## Proxmox VM Operator
 
+NodeRings is a marketplace and control plane where independent hosting providers sell VPS and game servers. The provider keeps the hardware, the customer, and the hypervisor credential. Buyers compare live plans and run them from one console.
+
+This repository is the operator that runs on the provider's cluster. NodeRings writes a VM order as a custom resource. This process reads the Proxmox API token from a secret in the provider's cluster and calls Proxmox on their network. The control plane does not receive that token. Guests it creates are named `NR-` plus an id.
+
 A Kubernetes operator for managing Proxmox VMs through Custom Resources. Supports managing VMs across multiple Proxmox instances with separate credentials for each.
 
 ### Features
