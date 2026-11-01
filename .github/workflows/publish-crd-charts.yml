@@ -1,0 +1,37 @@
+# Publish CRD and operator Helm charts to Harbor.
+# `nr cluster register` installs all three CRD charts plus the chosen operator
+# chart from oci://harbor.noderings.com/nrings (public; never harbor.nrings.io).
+name: Publish CRD charts
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  harbor:
+    name: Harbor OCI
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+      HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Publish CRD and operator charts
+        run: |
+          if [[ -z "${HARBOR_PASSWORD}" ]]; then
+            echo "HARBOR_PASSWORD is not set on this repo; skipping Harbor chart publish"
+            echo "Set HARBOR_USERNAME / HARBOR_PASSWORD (robot\$nrings+github for the public project)"
+            exit 0
+          fi
+          bash scripts/publish-crd-charts.sh
+          bash scripts/publish-operator-charts.sh
