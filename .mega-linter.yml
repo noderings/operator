@@ -41,9 +41,8 @@ KUBERNETES_KUBECONFORM_FILE_EXTENSIONS: yaml
 KUBERNETES_KUBECONFORM_FILTER_REGEX_INCLUDE: /tmp/proxmox-operator-rendered.yaml
 
 # Kubescape NSA compliance scan on the Helm chart (100% threshold).
-# C-0012 exceptions (.kubescape/exceptions.json):
-# - Alloy config references MIMIR_BEARER_TOKEN via sys.env (not a literal secret).
-# - HOOKS_PROVIDER_SECRET_NAME / noderings-hook-secrets are K8s object-name refs, not credentials.
+# C-0012 exceptions cover env-based credentials and Kubernetes object-name
+# references. Values stay in the cluster, not in this file.
 KUBERNETES_DIRECTORY: charts/proxmox-operator
 KUBERNETES_KUBESCAPE_PRE_COMMANDS:
   - command: helm dependency build charts/proxmox-operator

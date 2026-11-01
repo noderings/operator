@@ -6,12 +6,14 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   github-release:
     name: GitHub Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -41,7 +43,7 @@ jobs:
       - name: Publish CRD and operator charts
         run: |
           if [[ -z "${HARBOR_PASSWORD}" ]]; then
-            echo "HARBOR_PASSWORD is not set; cannot publish charts to Harbor" >&2
+            echo "Harbor credentials are not set; cannot publish charts" >&2
             exit 1
           fi
           bash scripts/publish-crd-charts.sh
