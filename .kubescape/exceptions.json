@@ -1,0 +1,40 @@
+[
+  {
+    "name": "alloy-configmap-bearer-from-env",
+    "policyType": "postureExceptionPolicy",
+    "actions": ["alertOnly"],
+    "resources": [
+      {
+        "designatorType": "Attributes",
+        "attributes": {
+          "kind": "ConfigMap",
+          "name": ".*alloy-config.*"
+        }
+      }
+    ],
+    "posturePolicies": [
+      {
+        "controlID": "C-0012"
+      }
+    ]
+  },
+  {
+    "name": "hooks-provider-secret-name-env-is-object-ref",
+    "policyType": "postureExceptionPolicy",
+    "actions": ["alertOnly"],
+    "resources": [
+      {
+        "designatorType": "Attributes",
+        "attributes": {
+          "kind": "Deployment",
+          "name": ".*(proxmox|solusvm|virtfusion)-operator.*"
+        }
+      }
+    ],
+    "posturePolicies": [
+      {
+        "controlID": "C-0012"
+      }
+    ]
+  }
+]

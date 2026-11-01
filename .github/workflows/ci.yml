@@ -1,0 +1,137 @@
+---
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Charts install from Harbor (oci://harbor.noderings.com/nrings). Image tags keep
+  # the v prefix (e.g. v0.1.3) so they do not overwrite Helm OCI chart tags (0.1.3).
+  REGISTRY: harbor.noderings.com
+  IMAGE_PREFIX: nrings
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run tests
+        run: poetry run pytest
+
+  docker:
+    name: Docker
+    needs: test
+    runs-on: ubuntu-latest
+    # Multi-arch via QEMU on a standard GitHub-hosted runner.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      # Poetry 2+ ships without `export`; plugin restores it for Docker requirements.txt.
+      - name: Export requirements.txt for Docker
+        run: |
+          poetry self add poetry-plugin-export
+          poetry export -f requirements.txt --without-hashes -o requirements.txt
+
+      - name: Resolve image version label
+        id: version
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # One image, four Harbor names — charts override command to the right kopf module.
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/proxmox-operator
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/solusvm-operator
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/virtfusion-operator
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/pterodactyl-operator
+          tags: |
+            # Git tag vX.Y.Z → image tag vX.Y.Z (matches charts/*/values.yaml image.tag)
+            type=ref,event=tag
+            type=sha,prefix=sha-
+            type=raw,value=main,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Log in to Harbor
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: >-
+            ${{
+              github.event_name == 'pull_request' &&
+              'linux/amd64' ||
+              'linux/amd64,linux/arm64'
+            }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.version.outputs.value }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            GIT_COMMIT=${{ github.sha }}

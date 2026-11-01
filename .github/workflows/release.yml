@@ -1,0 +1,50 @@
+---
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  github-release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+
+  # Container images are pushed by CI (Harbor). Charts/CRDs go to Harbor OCI here
+  # (same path as workflow_dispatch Publish CRD charts).
+  harbor-charts:
+    name: Harbor OCI charts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+      HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Publish CRD and operator charts
+        run: |
+          if [[ -z "${HARBOR_PASSWORD}" ]]; then
+            echo "Harbor credentials are not set; cannot publish charts" >&2
+            exit 1
+          fi
+          bash scripts/publish-crd-charts.sh
+          bash scripts/publish-operator-charts.sh
