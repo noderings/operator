@@ -422,7 +422,10 @@ def _run(identifier: str, action: str, payload: dict[str, Any]) -> dict[str, Any
         control.rename_server(client, identifier, _text(payload, "name"))
         return {}
     if action == "open_console":
-        return {"session": register_session(identifier)}
+        # Prove NR- here, where the admin key is configured. The console pod
+        # then opens the websocket with the client key only.
+        external_id = client.require_noderings_client_server(identifier)
+        return {"session": register_session(identifier, external_id)}
     if action == "file_grant":
         op = _text(payload, "op")
         if op not in {"write", "upload", "read", "download", "stream"}:
@@ -430,6 +433,7 @@ def _run(identifier: str, action: str, payload: dict[str, Any]) -> dict[str, Any
         size = int(payload.get("size") or 0)
         if not within_file_limit(size):
             raise ValueError("file is too large")
+        external_id = client.require_noderings_client_server(identifier)
         return {
             "transfer": register_transfer(
                 identifier,
@@ -439,6 +443,7 @@ def _run(identifier: str, action: str, payload: dict[str, Any]) -> dict[str, Any
                     "directory": _text(payload, "directory", "/"),
                     "filename": _text(payload, "filename"),
                 },
+                external_id,
             )
         }
     raise ValueError(f"unknown action {action}")

@@ -2,8 +2,8 @@ apiVersion: v2
 name: pterodactyl-operator
 description: Kopf operator for Pterodactyl game servers
 type: application
-version: 0.1.11
-appVersion: "0.1.11"
+version: 0.1.12
+appVersion: "0.1.12"
 home: https://github.com/noderings/operator
 sources:
   - https://github.com/noderings/operator

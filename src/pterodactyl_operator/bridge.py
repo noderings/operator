@@ -21,7 +21,7 @@ import time
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from .client import PanelError
+from .client import PanelClient, PanelError, is_noderings_server
 from .console import (
     _send_frame,
     _send_text,
@@ -108,14 +108,18 @@ def _consume(token: str, retain_for: float) -> bool:
         return True
 
 
-def register_session(identifier: str) -> str:
+def register_session(identifier: str, external_id: str) -> str:
     identifier = str(identifier).strip()
+    external_id = str(external_id or "").strip()
     if not identifier:
         raise ValueError("console session requires a server identifier")
+    if not is_noderings_server(external_id):
+        raise ValueError("console session requires an NR- external id")
     return _sign(
         {
             "kind": "session",
             "identifier": identifier,
+            "external_id": external_id,
             "exp": int(time.time()) + CONSOLE_SESSION_TTL_SECONDS,
             "nonce": secrets.token_urlsafe(12),
         }
@@ -123,24 +127,39 @@ def register_session(identifier: str) -> str:
 
 
 def take_session(session_id: str) -> str:
+    grant = take_session_grant(session_id)
+    if not grant:
+        return ""
+    return grant["identifier"]
+
+
+def take_session_grant(session_id: str) -> dict[str, str] | None:
     payload = _unsign(session_id)
     if not payload or payload.get("kind") != "session":
-        return ""
+        return None
+    identifier = str(payload.get("identifier") or "").strip()
+    external_id = str(payload.get("external_id") or "").strip()
+    if not identifier or not is_noderings_server(external_id):
+        return None
     if not _consume(session_id, CONSOLE_SESSION_TTL_SECONDS):
-        return ""
-    return str(payload.get("identifier") or "")
+        return None
+    return {"identifier": identifier, "external_id": external_id}
 
 
-def register_transfer(identifier: str, op: str, meta: dict[str, Any]) -> str:
+def register_transfer(identifier: str, op: str, meta: dict[str, Any], external_id: str) -> str:
     identifier = str(identifier).strip()
+    external_id = str(external_id or "").strip()
     if not identifier:
         raise ValueError("file transfer requires a server identifier")
+    if not is_noderings_server(external_id):
+        raise ValueError("file transfer requires an NR- external id")
     if op not in CONSOLE_TRANSFER_OPS:
         raise ValueError(f"unsupported file operation: {op}")
     return _sign(
         {
             "kind": "transfer",
             "identifier": identifier,
+            "external_id": external_id,
             "op": op,
             "meta": meta,
             "exp": int(time.time()) + CONSOLE_TRANSFER_TTL_SECONDS,
@@ -153,15 +172,27 @@ def take_transfer(transfer_id: str) -> dict[str, Any] | None:
     payload = _unsign(transfer_id)
     if not payload or payload.get("kind") != "transfer":
         return None
+    identifier = str(payload.get("identifier") or "").strip()
+    external_id = str(payload.get("external_id") or "").strip()
+    if not identifier or not is_noderings_server(external_id):
+        return None
     if not _consume(transfer_id, CONSOLE_TRANSFER_TTL_SECONDS):
         return None
     meta = payload.get("meta")
     return {
-        "identifier": str(payload.get("identifier") or ""),
+        "identifier": identifier,
+        "external_id": external_id,
         "op": str(payload.get("op") or ""),
         "meta": meta if isinstance(meta, dict) else {},
         "exp": float(payload.get("exp") or 0),
     }
+
+
+def _client_for_server(identifier: str, external_id: str) -> PanelClient:
+    """Client calls for a server the operator already proved is NR-."""
+    client = _client()
+    client.allow_verified_server(identifier, external_id)
+    return client
 
 
 def _require_single_replica() -> None:
@@ -312,9 +343,11 @@ def _bridge(conn: socket.socket) -> None:
         _send_http(conn, 400, b"")
         return
     session_id = (parse_qs(parsed.query).get("session") or [""])[0]
-    identifier = take_session(session_id)
+    grant = take_session_grant(session_id)
+    identifier = grant["identifier"] if grant else ""
+    external_id = grant["external_id"] if grant else ""
     key = headers.get("sec-websocket-key", "")
-    if parsed.path != "/bridge" or not identifier or not key:
+    if parsed.path != "/bridge" or not identifier or not external_id or not key:
         conn.sendall(b"HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n")
         return
     accept = base64.b64encode(hashlib.sha1((key + _GUID).encode()).digest()).decode()
@@ -328,7 +361,7 @@ def _bridge(conn: socket.socket) -> None:
         ).encode()
     )
     try:
-        client = _client()
+        client = _client_for_server(identifier, external_id)
         creds = websocket_credentials(client, identifier)
         wings, wings_buffer = open_live_console(
             creds["socket"], creds["token"], origin=panel_origin(client.base_url)
@@ -443,6 +476,7 @@ def _file_transfer(
     op = str(grant["op"])
     meta = grant["meta"] if isinstance(grant["meta"], dict) else {}
     identifier = str(grant["identifier"])
+    external_id = str(grant.get("external_id") or "")
     try:
         if method == "POST":
             if op not in {"write", "upload"}:
@@ -456,7 +490,7 @@ def _file_transfer(
             if len(body) != length:
                 _send_http(conn, 400, b"short body")
                 return
-            client = _client()
+            client = _client_for_server(identifier, external_id)
             client.timeout = 300
             if op == "write":
                 files.write_file(client, identifier, str(meta.get("path") or ""), body)
@@ -471,7 +505,7 @@ def _file_transfer(
             _send_http(conn, 204, b"")
             return
         if op == "stream":
-            client = _client()
+            client = _client_for_server(identifier, external_id)
             response = files.open_download(client, identifier, str(meta.get("path") or ""))
             try:
                 _send_chunked(conn, response.iter_content(chunk_size=64 * 1024))
@@ -483,7 +517,7 @@ def _file_transfer(
         if op not in {"read", "download"}:
             _send_http(conn, 400, b"wrong operation")
             return
-        client = _client()
+        client = _client_for_server(identifier, external_id)
         client.timeout = 300
         if op == "read":
             data = files.read_file(client, identifier, str(meta.get("path") or ""))

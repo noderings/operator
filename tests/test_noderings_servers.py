@@ -159,6 +159,65 @@ def test_client_call_refuses_a_panel_server_without_nr_external_id() -> None:
     ]
 
 
+def test_verified_nr_server_skips_the_application_api() -> None:
+    client, session = _client(
+        {
+            (
+                "GET",
+                "/api/client/servers/abc/websocket",
+            ): _Response(200, {"data": {"token": "wings-token", "socket": "wss://wings/ws"}}),
+        }
+    )
+    client.allow_verified_server("abc", "NR-order")
+    status, payload = client.client_api("GET", "/servers/abc/websocket")
+    assert status == 200
+    assert payload["data"]["token"] == "wings-token"
+    assert session.calls == [("GET", "/api/client/servers/abc/websocket")]
+
+
+def test_verified_mark_does_not_cover_a_different_server() -> None:
+    client, session = _client(
+        {
+            ("GET", "/api/client/servers/other"): _Response(
+                200,
+                {"attributes": {"identifier": "other", "internal_id": 9, "name": "other"}},
+            ),
+            ("GET", "/api/application/servers/9"): _server("other", "37102"),
+        }
+    )
+    client.allow_verified_server("abc", "NR-order")
+    try:
+        client.client_api("GET", "/servers/other/websocket")
+    except PanelError as exc:
+        assert exc.status == 403
+    else:
+        raise AssertionError("a different server skipped the NR- check")
+    assert session.calls == [
+        ("GET", "/api/client/servers/other"),
+        ("GET", "/api/application/servers/9"),
+    ]
+
+
+def test_foreign_mark_does_not_skip_the_application_api() -> None:
+    client, session = _client(
+        {
+            ("GET", "/api/client/servers/abc"): _Response(
+                200,
+                {"attributes": {"identifier": "abc", "internal_id": 9, "name": "other"}},
+            ),
+            ("GET", "/api/application/servers/9"): _server("other", "37102"),
+        }
+    )
+    client.allow_verified_server("abc", "not-nr")
+    try:
+        client.client_api("GET", "/servers/abc/websocket")
+    except PanelError as exc:
+        assert exc.status == 403
+    else:
+        raise AssertionError("a non-NR mark skipped the check")
+    assert ("GET", "/api/application/servers/9") in session.calls
+
+
 def test_power_reaches_an_nr_server() -> None:
     client, session = _client(
         {

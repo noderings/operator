@@ -8,10 +8,10 @@ operator:
 image:
   registry: harbor.noderings.com
   repository: nrings/pterodactyl-operator
-  # Hotfix past the shared v0.1.10 image: refuse a create when the panel
-  # does not list the Wings node as deployable. Chart OCI tag is 0.1.11;
-  # the image tag keeps the v prefix so it does not overwrite the chart.
-  tag: "v0.1.11"
+  # Console opens with the client key. The operator proves the NR- id
+  # before signing the session, so the console pod does not call the admin API.
+  # Chart OCI tag is 0.1.12; the image tag keeps the v prefix.
+  tag: "v0.1.12"
   pullPolicy: IfNotPresent
 serviceAccount:
   create: true

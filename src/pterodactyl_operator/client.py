@@ -45,6 +45,10 @@ class PanelClient:
         self.client_key = client_key
         self.timeout = timeout
         self.session = requests.Session()
+        # Set only after a signed grant already proved this identifier is NR-.
+        # Client calls for that server then skip the application-API lookup.
+        self.verified_identifier = ""
+        self.verified_external_id = ""
 
     def application(
         self,
@@ -80,6 +84,35 @@ class PanelClient:
             timeout=timeout,
         )
 
+    def allow_verified_server(self, identifier: str, external_id: str) -> None:
+        """Trust one server for later client calls. The external id must already be NR-."""
+        identifier = str(identifier or "").strip()
+        external_id = str(external_id or "").strip()
+        if not identifier or not is_noderings_server(external_id):
+            self.verified_identifier = ""
+            self.verified_external_id = ""
+            return
+        self.verified_identifier = identifier
+        self.verified_external_id = external_id
+
+    def require_noderings_client_server(self, identifier: str) -> str:
+        """Resolve a client identifier to its NR- external id.
+
+        The client record omits external_id, so this may call the application API.
+        Call it from the operator, which holds the admin key. The console bridge
+        then uses allow_verified_server and does not call the application API again.
+        """
+        identifier = str(identifier or "").strip()
+        if not identifier:
+            raise PanelError(404, "not found")
+        target = {"api": "client", "kind": "one", "ident": identifier, "exact": False}
+        external_id = self._server_external_id(self.client_key, target)
+        if external_id is None:
+            raise PanelError(404, "not found")
+        if not is_noderings_server(external_id):
+            raise PanelError(403, FOREIGN_SERVER)
+        return str(external_id).strip()
+
     def _call(
         self,
         method: str,
@@ -92,7 +125,8 @@ class PanelClient:
         timeout: float | None = None,
     ) -> tuple[int, Any]:
         target = _server_target(path)
-        if target is not None:
+        verified = self._client_call_already_verified(target)
+        if target is not None and not verified:
             self._require_noderings(method, path, key, json_body, target)
         status, payload = self._request(
             method, path, key, json_body, params, raw_body, content_type, timeout=timeout
@@ -101,6 +135,8 @@ class PanelClient:
             return status, payload
         if target["kind"] == "collection" and method.upper() == "GET" and isinstance(payload, dict):
             return status, _only_noderings(payload)
+        if verified:
+            return status, payload
         if target["exact"] and method.upper() == "GET":
             if target["api"] == "client":
                 # The client API omits external_id. The application record has NR-….
@@ -110,6 +146,13 @@ class PanelClient:
             else:
                 _require_record(payload)
         return status, payload
+
+    def _client_call_already_verified(self, target: dict[str, Any] | None) -> bool:
+        if not target or target.get("api") != "client":
+            return False
+        if str(target.get("ident") or "") != self.verified_identifier:
+            return False
+        return is_noderings_server(self.verified_external_id)
 
     def _require_noderings(
         self,
