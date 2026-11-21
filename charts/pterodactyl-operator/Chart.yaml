@@ -9,7 +9,7 @@ sources:
   - https://github.com/noderings/operator
 dependencies:
   - name: pterodactyl-operator-crds
-    version: "0.1.0"
+    version: "0.1.12"
     repository: file://../pterodactyl-operator-crds
     condition: crds.enabled
   - name: alloy
