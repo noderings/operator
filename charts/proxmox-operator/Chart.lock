@@ -1,9 +1,9 @@
 dependencies:
 - name: proxmox-operator-crds
   repository: file://../proxmox-operator-crds
-  version: 0.1.12
+  version: 0.1.13
 - name: alloy
   repository: https://grafana.github.io/helm-charts
   version: 1.5.0
-digest: sha256:80c4b26029f646130248548556f51eb8535a2eb20207f0e7aff4b2ea2d60bb02
-generated: "2026-11-21T19:46:03.269179+01:00"
+digest: sha256:68e237ecdbffa661a2fc2c5712cae948ae9477dcb273ea4748812967f05b7157
+generated: "2026-11-23T23:59:33.775524079Z"

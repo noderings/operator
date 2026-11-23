@@ -8,9 +8,9 @@ image:
   registry: harbor.noderings.com
   repository: nrings/virtfusion-operator
   # Harbor stores this OCI Helm chart and the container image in the same repo.
-  # Helm OCI tag is Chart.yaml version (0.1.12). Image tag keeps the v prefix so it
+  # Helm OCI tag is Chart.yaml version (0.1.13). Image tag keeps the v prefix so it
   # does not overwrite the chart.
-  tag: v0.1.12
+  tag: v0.1.13
   pullPolicy: IfNotPresent
   pullSecrets: []
 
