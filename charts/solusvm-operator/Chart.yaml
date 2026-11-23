@@ -2,8 +2,8 @@ apiVersion: v2
 name: solusvm-operator
 description: Kopf-based SolusVM VM operator
 type: application
-version: 0.1.12
-appVersion: "0.1.12"
+version: 0.1.13
+appVersion: "0.1.13"
 home: https://github.com/noderings/operator
 sources:
   - https://github.com/noderings/operator
@@ -17,7 +17,7 @@ maintainers:
     url: https://github.com/noderings
 dependencies:
   - name: solusvm-operator-crds
-    version: "0.1.12"
+    version: "0.1.13"
     repository: file://../solusvm-operator-crds
     condition: crds.enabled
   - name: alloy
