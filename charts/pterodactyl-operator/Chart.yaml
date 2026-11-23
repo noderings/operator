@@ -2,14 +2,14 @@ apiVersion: v2
 name: pterodactyl-operator
 description: Kopf operator for Pterodactyl game servers
 type: application
-version: 0.1.12
-appVersion: "0.1.12"
+version: 0.1.13
+appVersion: "0.1.13"
 home: https://github.com/noderings/operator
 sources:
   - https://github.com/noderings/operator
 dependencies:
   - name: pterodactyl-operator-crds
-    version: "0.1.12"
+    version: "0.1.13"
     repository: file://../pterodactyl-operator-crds
     condition: crds.enabled
   - name: alloy

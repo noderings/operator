@@ -1,9 +1,9 @@
 dependencies:
 - name: virtfusion-operator-crds
   repository: file://../virtfusion-operator-crds
-  version: 0.1.12
+  version: 0.1.13
 - name: alloy
   repository: https://grafana.github.io/helm-charts
   version: 1.5.0
-digest: sha256:d539affaf2cc98b1effc77960a05715d713e4d0e1ba12ca169248bd4db16f14b
-generated: "2026-11-21T19:46:19.525087+01:00"
+digest: sha256:ab05f84664d6229a0cee142629c4b2c189420a8ce28469fa2c8ee12b76245a2f
+generated: "2026-11-23T23:59:35.532504052Z"
