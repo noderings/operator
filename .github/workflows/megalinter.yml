@@ -1,0 +1,37 @@
+---
+# https://megalinter.io/latest/
+name: MegaLinter
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  megalinter:
+    name: MegaLinter
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: MegaLinter
+        uses: oxsecurity/megalinter/flavors/cupcake@v9.4.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VALIDATE_ALL_CODEBASE: true
+          ENABLE_LINTERS: PYTHON_RUFF,PYTHON_RUFF_FORMAT,PYTHON_MYPY,KUBERNETES_HELM,KUBERNETES_KUBECONFORM,KUBERNETES_KUBESCAPE,YAML

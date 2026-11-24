@@ -34,14 +34,13 @@ destroy_vm.py
 # Graphify stays on disk and is not published.
 /graphify-out/
 
-# Editor, CI, and local tool config stay on disk and are not published.
+# Editor and local tool config stay on disk and are not published.
 /.cursor/
 /.cursorrules
-/.github/
+/.github/*
+!/.github/workflows/
 /.dockerignore
-/.mega-linter.yml
 /.pre-commit-config.yaml
-/.kubescape/
 
 # Local lab Helm values and live panel scripts.
 /charts/proxmox-operator/values-local.yaml

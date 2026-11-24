@@ -1,0 +1,53 @@
+# https://megalinter.io/latest/configuration/
+# Python linters aligned with .pre-commit-config.yaml (ruff, ruff-format, mypy).
+# Kubernetes/Helm linters for charts/proxmox-operator production readiness.
+
+ENABLE_LINTERS:
+  - PYTHON_RUFF
+  - PYTHON_RUFF_FORMAT
+  - PYTHON_MYPY
+  - KUBERNETES_HELM
+  - KUBERNETES_KUBECONFORM
+  - KUBERNETES_KUBESCAPE
+  - YAML
+
+# Required for PYTHON_RUFF_FORMAT (see python_ruff_format descriptor).
+PYTHON_DEFAULT_STYLE: ruff
+
+FLAVOR_SUGGESTIONS: false
+SHOW_SKIPPED_LINTERS: false
+
+# Use project typing config ([tool.mypy] in pyproject.toml)
+PYTHON_MYPY_CONFIG_FILE: pyproject.toml
+
+# Match pre-commit mypy additional_dependencies: types-requests
+PYTHON_MYPY_PRE_COMMANDS:
+  - command: pip install types-requests types-PyYAML
+    venv: mypy
+
+# Helm chart linting
+KUBERNETES_HELM_DIRECTORY: charts/proxmox-operator
+KUBERNETES_HELM_ARGUMENTS: --strict charts/proxmox-operator
+KUBERNETES_HELM_PRE_COMMANDS:
+  - command: helm dependency build charts/proxmox-operator
+
+# Validate rendered manifests against Kubernetes schemas
+KUBERNETES_KUBECONFORM_COMMAND: kubeconform
+KUBERNETES_KUBECONFORM_ARGUMENTS: -summary -ignore-missing-schemas
+KUBERNETES_KUBECONFORM_PRE_COMMANDS:
+  - command: helm dependency build charts/proxmox-operator
+  - command: helm template proxmox-operator charts/proxmox-operator --namespace proxmox-operator > /tmp/proxmox-operator-rendered.yaml
+KUBERNETES_KUBECONFORM_FILE_EXTENSIONS: yaml
+KUBERNETES_KUBECONFORM_FILTER_REGEX_INCLUDE: /tmp/proxmox-operator-rendered.yaml
+
+# Kubescape NSA compliance scan on the Helm chart (100% threshold).
+# C-0012 exceptions cover env-based credentials and Kubernetes object-name
+# references. Values stay in the cluster, not in this file.
+KUBERNETES_DIRECTORY: charts/proxmox-operator
+KUBERNETES_KUBESCAPE_PRE_COMMANDS:
+  - command: helm dependency build charts/proxmox-operator
+KUBERNETES_KUBESCAPE_ARGUMENTS: framework nsa --compliance-threshold 100 --exceptions .kubescape/exceptions.json charts/proxmox-operator
+
+# Use project ruff config (pyproject.toml) instead of MegaLinter defaults
+PYTHON_RUFF_CONFIG_FILE: pyproject.toml
+PYTHON_RUFF_FORMAT_CONFIG_FILE: pyproject.toml
